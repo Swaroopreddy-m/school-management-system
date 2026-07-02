@@ -70,18 +70,121 @@ model School {
 }
 
 model SchoolUser {
-  id           String   @id @default(uuid())
-  schoolId     String
-  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  name         String
-  email        String
-  username     String
-  passwordHash String
-  role         String   // SCHOOL_ADMIN, PRINCIPAL, VICE_PRINCIPAL, TEACHER, STUDENT, PARENT, ACCOUNTANT, LIBRARIAN, RECEPTIONIST
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id             String          @id @default(uuid())
+  schoolId       String
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  email          String
+  username       String
+  passwordHash   String
+  role           String          // SCHOOL_ADMIN, PRINCIPAL, VICE_PRINCIPAL, TEACHER, STUDENT, PARENT, ACCOUNTANT, LIBRARIAN, RECEPTIONIST
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  studentProfile StudentProfile?
+  teacherProfile TeacherProfile?
+  attendances    Attendance[]
+  examResults    ExamResult[]
+  feeInvoices    FeeInvoice[]
+  bookIssues     BookIssue[]
 
   @@unique([schoolId, username])
+}
+
+model StudentProfile {
+  id           String     @id @default(uuid())
+  userId       String     @unique
+  user         SchoolUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rollNumber   String
+  grade        String
+  section      String
+  parentName   String?
+  parentPhone  String?
+  createdAt    DateTime   @default(now())
+}
+
+model TeacherProfile {
+  id            String     @id @default(uuid())
+  userId        String     @unique
+  user          SchoolUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeId    String
+  subject       String
+  qualification String?
+  createdAt     DateTime   @default(now())
+}
+
+model Attendance {
+  id        String     @id @default(uuid())
+  schoolId  String
+  studentId String     // References SchoolUser.id
+  student   SchoolUser @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      String     // YYYY-MM-DD
+  status    String     // PRESENT, ABSENT, LATE, EXCUSED
+  remarks   String?
+  createdAt DateTime   @default(now())
+
+  @@unique([studentId, date])
+}
+
+model Exam {
+  id        String       @id @default(uuid())
+  schoolId  String
+  examName  String
+  subject   String
+  maxMarks  Int
+  examDate  String       // YYYY-MM-DD
+  createdAt DateTime     @default(now())
+  results   ExamResult[]
+}
+
+model ExamResult {
+  id            String     @id @default(uuid())
+  examId        String
+  exam          Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId     String     // References SchoolUser.id
+  student       SchoolUser @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  marksObtained Float
+  grade         String?
+  remarks       String?
+  createdAt     DateTime   @default(now())
+
+  @@unique([examId, studentId])
+}
+
+model FeeInvoice {
+  id            String     @id @default(uuid())
+  schoolId      String
+  studentId     String     // References SchoolUser.id
+  student       SchoolUser @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount        Float
+  dueDate       String     // YYYY-MM-DD
+  status        String     // UNPAID, PAID
+  paymentMethod String?
+  paymentDate   String?    // YYYY-MM-DD
+  createdAt     DateTime   @default(now())
+}
+
+model Book {
+  id        String      @id @default(uuid())
+  schoolId  String
+  title     String
+  author    String
+  isbn      String?
+  quantity  Int
+  available Int
+  createdAt DateTime    @default(now())
+  issues    BookIssue[]
+}
+
+model BookIssue {
+  id         String     @id @default(uuid())
+  bookId     String
+  book       Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  studentId  String     // References SchoolUser.id
+  student    SchoolUser @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issueDate  String     // YYYY-MM-DD
+  returnDate String?    // YYYY-MM-DD
+  status     String     // ISSUED, RETURNED
+  createdAt  DateTime   @default(now())
 }
 
 model AuditLog {

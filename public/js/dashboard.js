@@ -1560,19 +1560,18 @@ const DashboardPortal = {
     const user = App.state.user;
     if (!user) return;
 
-    // Get school user subrole
     const role = user.schoolUserRole || 'SCHOOL_ADMIN';
 
     // DYNAMIC MENUS BASED ON PERMISSIONS
     const roleMenus = {
-      SCHOOL_ADMIN: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Receptionist', 'Audit Logs', 'Settings'],
-      PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Reports'],
+      SCHOOL_ADMIN: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Audit Logs'],
+      PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams'],
       TEACHER: ['Dashboard', 'Students', 'Attendance', 'Exams'],
-      STUDENT: ['Dashboard', 'Attendance', 'Exams', 'Fees', 'Library'],
-      PARENT: ['Dashboard', 'Students (Children)', 'Attendance', 'Fees', 'Exams'],
-      ACCOUNTANT: ['Dashboard', 'Fees', 'Expenses', 'Reports'],
-      LIBRARIAN: ['Dashboard', 'Library', 'Book Issue'],
-      RECEPTIONIST: ['Dashboard', 'Visitors', 'Reception']
+      STUDENT: ['Dashboard', 'Exams', 'Fees', 'Library'],
+      PARENT: ['Dashboard', 'Fees', 'Exams'],
+      ACCOUNTANT: ['Dashboard', 'Fees'],
+      LIBRARIAN: ['Dashboard', 'Library'],
+      RECEPTIONIST: ['Dashboard']
     };
 
     const menus = roleMenus[role] || ['Dashboard'];
@@ -1588,13 +1587,10 @@ const DashboardPortal = {
       else if (menu.includes('Student')) icon = 'users';
       else if (menu.includes('Teacher')) icon = 'user-check';
       else if (menu.includes('Attendance')) icon = 'calendar';
-      else if (menu.includes('Fees') || menu.includes('Expenses')) icon = 'banknote';
+      else if (menu.includes('Fees')) icon = 'banknote';
       else if (menu.includes('Exams')) icon = 'award';
       else if (menu.includes('Library')) icon = 'book-open';
-      else if (menu.includes('Reception') || menu.includes('Visitors')) icon = 'user-plus';
       else if (menu.includes('Audit')) icon = 'file-text';
-      else if (menu.includes('Settings')) icon = 'settings';
-      else if (menu.includes('Reports')) icon = 'line-chart';
 
       menuHtml += `
         <div class="menu-item ${this.activeTab === menu ? 'active' : ''}" onclick="DashboardPortal.switchSchoolTab('${menu}')">
@@ -1617,7 +1613,7 @@ const DashboardPortal = {
           </div>
 
           <div class="sidebar-menu">
-            <div class="menu-section-label">School Menus</div>
+            <div class="menu-section-label">Academic Menus</div>
             ${menuHtml}
           </div>
 
@@ -1626,7 +1622,7 @@ const DashboardPortal = {
               <div class="user-avatar">${user.username.charAt(0).toUpperCase()}</div>
               <div class="user-info">
                 <span class="user-name">${user.name}</span>
-                <span class="user-role">${role}</span>
+                <span class="user-role">${role.replace('_', ' ')}</span>
               </div>
             </div>
             <div class="logout-btn" onclick="App.logout()" title="Logout">
@@ -1651,6 +1647,305 @@ const DashboardPortal = {
           </div>
         </div>
       </div>
+
+      <!-- Student Creator Modal -->
+      <div class="modal-overlay" id="student-modal">
+        <div class="modal-box" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h3>Add New Student</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleCreateStudent(event)">
+            <div class="form-group">
+              <label>Full Name *</label>
+              <input type="text" class="input-control" id="modal-stud-name" required placeholder="e.g. Bobby Axelrod">
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Roll Number *</label>
+                <input type="text" class="input-control" id="modal-stud-roll" required placeholder="e.g. ROLL-101">
+              </div>
+              <div class="form-group">
+                <label>Grade Level *</label>
+                <input type="text" class="input-control" id="modal-stud-grade" required placeholder="e.g. Grade 10">
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Section *</label>
+                <input type="text" class="input-control" id="modal-stud-section" required placeholder="e.g. Section A">
+              </div>
+              <div class="form-group">
+                <label>Parent/Guardian Name</label>
+                <input type="text" class="input-control" id="modal-stud-parent" placeholder="e.g. Charles Axelrod">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Parent Contact Phone</label>
+              <input type="text" class="input-control" id="modal-stud-parent-phone" placeholder="+1 (555) 765-4321">
+            </div>
+            <div style="border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem;">
+              <h4 style="margin-bottom:0.75rem; font-size:12px; color:var(--accent); font-weight:600;">Student Account Access</h4>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label>Username *</label>
+                  <input type="text" class="input-control" id="modal-stud-username" required placeholder="bobby_a">
+                </div>
+                <div class="form-group">
+                  <label>Email *</label>
+                  <input type="email" class="input-control" id="modal-stud-email" required placeholder="bobby@school.edu">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Password *</label>
+                <input type="password" class="input-control" id="modal-stud-password" required placeholder="••••••••">
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleStudentModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Add Student</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Teacher Creator Modal -->
+      <div class="modal-overlay" id="teacher-modal">
+        <div class="modal-box" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h3>Add New Teacher</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleCreateTeacher(event)">
+            <div class="form-group">
+              <label>Full Name *</label>
+              <input type="text" class="input-control" id="modal-teach-name" required placeholder="e.g. Prof. Charles Xavier">
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Employee ID *</label>
+                <input type="text" class="input-control" id="modal-teach-empid" required placeholder="e.g. EMP-202">
+              </div>
+              <div class="form-group">
+                <label>Primary Subject *</label>
+                <input type="text" class="input-control" id="modal-teach-subject" required placeholder="e.g. Physics">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Qualification / Degree</label>
+              <input type="text" class="input-control" id="modal-teach-qual" placeholder="e.g. Ph.D. in Astrophysics">
+            </div>
+            <div style="border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem;">
+              <h4 style="margin-bottom:0.75rem; font-size:12px; color:var(--accent); font-weight:600;">Teacher Account Access</h4>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label>Username *</label>
+                  <input type="text" class="input-control" id="modal-teach-username" required placeholder="charles_x">
+                </div>
+                <div class="form-group">
+                  <label>Email *</label>
+                  <input type="email" class="input-control" id="modal-teach-email" required placeholder="charles@school.edu">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Password *</label>
+                <input type="password" class="input-control" id="modal-teach-password" required placeholder="••••••••">
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleTeacherModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Add Teacher</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Invoice Creator Modal -->
+      <div class="modal-overlay" id="invoice-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Issue Student Fee Invoice</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleCreateInvoice(event)">
+            <div class="form-group">
+              <label>Select Student *</label>
+              <select class="input-control" id="modal-inv-stud" required></select>
+            </div>
+            <div class="form-group">
+              <label>Billing Amount ($) *</label>
+              <input type="number" step="0.01" class="input-control" id="modal-inv-amount" required placeholder="e.g. 450.00">
+            </div>
+            <div class="form-group">
+              <label>Due Date *</label>
+              <input type="date" class="input-control" id="modal-inv-duedate" required>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleInvoiceModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Issue Invoice</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Exam Creator Modal -->
+      <div class="modal-overlay" id="exam-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Schedule Assessment / Exam</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleCreateExam(event)">
+            <div class="form-group">
+              <label>Exam Name *</label>
+              <input type="text" class="input-control" id="modal-exam-name" required placeholder="e.g. Midterm Examination">
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Subject *</label>
+                <input type="text" class="input-control" id="modal-exam-subject" required placeholder="e.g. Algebra">
+              </div>
+              <div class="form-group">
+                <label>Max Score (Marks) *</label>
+                <input type="number" class="input-control" id="modal-exam-max" required placeholder="100">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Exam Date *</label>
+              <input type="date" class="input-control" id="modal-exam-date" required>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleExamModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Schedule Exam</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Marks Posting Modal -->
+      <div class="modal-overlay" id="marks-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3 id="marks-modal-title">Post Student Score</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handlePostScore(event)">
+            <input type="hidden" id="modal-score-exam-id">
+            <div class="form-group">
+              <label>Select Student *</label>
+              <select class="input-control" id="modal-score-stud" required></select>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Marks Obtained *</label>
+                <input type="number" step="0.1" class="input-control" id="modal-score-marks" required placeholder="e.g. 85.5">
+              </div>
+              <div class="form-group">
+                <label>Grade Indicator</label>
+                <input type="text" class="input-control" id="modal-score-grade" placeholder="e.g. A+">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Remarks / Feedback</label>
+              <input type="text" class="input-control" id="modal-score-remarks" placeholder="Excellent performance">
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleMarksModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Score</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Book Catalog Modal -->
+      <div class="modal-overlay" id="book-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Add Book to Library Catalog</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleCreateBook(event)">
+            <div class="form-group">
+              <label>Book Title *</label>
+              <input type="text" class="input-control" id="modal-book-title" required placeholder="e.g. Introduction to Algorithms">
+            </div>
+            <div class="form-group">
+              <label>Author Name *</label>
+              <input type="text" class="input-control" id="modal-book-author" required placeholder="e.g. Thomas H. Cormen">
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>ISBN Number</label>
+                <input type="text" class="input-control" id="modal-book-isbn" placeholder="978-0262033848">
+              </div>
+              <div class="form-group">
+                <label>Total Copy Count *</label>
+                <input type="number" class="input-control" id="modal-book-qty" required placeholder="5">
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleBookModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Catalog Book</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Checkout Library Modal -->
+      <div class="modal-overlay" id="checkout-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Issue Library Book</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleIssueBook(event)">
+            <input type="hidden" id="modal-issue-book-id">
+            <div class="form-group">
+              <label>Book Selected</label>
+              <input type="text" class="input-control" id="modal-issue-book-title" disabled>
+            </div>
+            <div class="form-group">
+              <label>Select Student Borrower *</label>
+              <select class="input-control" id="modal-issue-stud" required></select>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleCheckoutModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Check Out</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Pay Online Simulator Modal -->
+      <div class="modal-overlay" id="pay-online-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Pay Invoice Online (Stripe Sandbox)</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handlePayOnline(event)">
+            <input type="hidden" id="modal-pay-invoice-id">
+            <div class="form-group">
+              <label>Amount Due</label>
+              <input type="text" class="input-control" id="modal-pay-amount" disabled>
+            </div>
+            <div class="form-group">
+              <label>Cardholder Name *</label>
+              <input type="text" class="input-control" id="modal-pay-cardname" required placeholder="e.g. Harry Potter">
+            </div>
+            <div class="form-group">
+              <label>Card Number *</label>
+              <input type="text" class="input-control" required placeholder="4242 4242 4242 4242" value="4242 4242 4242 4242">
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Expiration *</label>
+                <input type="text" class="input-control" required placeholder="MM/YY" value="12/29">
+              </div>
+              <div class="form-group">
+                <label>CVC *</label>
+                <input type="text" class="input-control" required placeholder="123" value="123">
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.togglePayOnlineModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Process Payment</button>
+            </div>
+          </form>
+        </div>
+      </div>
     `;
 
     this.loadSchoolTabContent();
@@ -1663,21 +1958,1064 @@ const DashboardPortal = {
     this.renderSchool();
   },
 
-  loadSchoolTabContent() {
+  async loadSchoolTabContent() {
     const body = document.getElementById('school-content-body');
     if (!body) return;
 
     const user = App.state.user;
+    const userRole = user.schoolUserRole || 'SCHOOL_ADMIN';
+    const isWriteAllowed = ['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'].includes(userRole);
 
-    body.innerHTML = `
-      <div class="maintenance-card card-glass">
-        <h3>${this.activeTab} Dashboard Zone</h3>
-        <p style="margin-top: 10px;">Logged in at <strong>${user.schoolName}</strong> as <strong>${user.schoolUserRole}</strong>.</p>
-        <div style="margin-top: 20px; font-size:13px; color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 1.25rem; border-radius: var(--radius-md); border:1px solid var(--border);">
-          School User dynamic menus are generated based on your permission role. This sandbox zone handles student, teacher, class and system features in subsequent development phases.
-        </div>
-      </div>
+    body.innerHTML = `<div class="text-center" style="padding: 50px 0;"><div class="stat-value" style="font-size: 18px; color: var(--text-secondary)">Loading modules...</div></div>`;
+
+    switch (this.activeTab) {
+      case 'Dashboard':
+        const stds = await App.apiCall('/api/school/students');
+        const tchs = await App.apiCall('/api/school/teachers');
+        const bks = await App.apiCall('/api/school/books');
+        const fees = await App.apiCall('/api/school/fees');
+        const unpaidCount = Array.isArray(fees) ? fees.filter(f => f.status === 'UNPAID').length : 0;
+
+        body.innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-details">
+                <h3>Total Students</h3>
+                <div class="stat-value">${Array.isArray(stds) ? stds.length : 0}</div>
+              </div>
+              <div class="stat-icon-wrapper icon-purple">
+                <i data-lucide="users"></i>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-details">
+                <h3>Total Teachers</h3>
+                <div class="stat-value">${Array.isArray(tchs) ? tchs.length : 0}</div>
+              </div>
+              <div class="stat-icon-wrapper icon-pink">
+                <i data-lucide="user-check"></i>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-details">
+                <h3>Books Catalogued</h3>
+                <div class="stat-value">${Array.isArray(bks) ? bks.length : 0}</div>
+              </div>
+              <div class="stat-icon-wrapper icon-green">
+                <i data-lucide="book-open"></i>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-details">
+                <h3>Unpaid Invoices</h3>
+                <div class="stat-value">${unpaidCount}</div>
+              </div>
+              <div class="stat-icon-wrapper icon-yellow">
+                <i data-lucide="credit-card"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-glass">
+            <h3>Welcome to ${user.schoolName}</h3>
+            <p style="margin-top: 8px; color: var(--text-secondary);">Manage students, teachers, mark attendance, catalog library books, score exams, and collect student fees from this portal.</p>
+            <div style="margin-top: 1.5rem; display: flex; gap: 10px;">
+              ${['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'].includes(userRole) ? `
+                <button class="btn btn-primary" onclick="DashboardPortal.switchSchoolTab('Students')">Register Student</button>
+              ` : ''}
+              <button class="btn btn-secondary" onclick="DashboardPortal.switchSchoolTab('Library')">View Library Catalogue</button>
+            </div>
+          </div>
+        `;
+        break;
+
+      case 'Students':
+        const students = await App.apiCall('/api/school/students');
+        let studRows = '';
+
+        if (Array.isArray(students) && students.length > 0) {
+          students.forEach(s => {
+            const prof = s.studentProfile || {};
+            studRows += `
+              <tr>
+                <td><strong>${s.name}</strong></td>
+                <td>@${s.username}</td>
+                <td><code>${prof.rollNumber || 'N/A'}</code></td>
+                <td>${prof.grade || 'N/A'} - ${prof.section || 'N/A'}</td>
+                <td>${prof.parentName || 'N/A'} (${prof.parentPhone || 'N/A'})</td>
+                <td>
+                  <span class="btn-status status-active">${s.active ? 'ACTIVE' : 'INACTIVE'}</span>
+                </td>
+              </tr>
+            `;
+          });
+        } else {
+          studRows = `<tr><td colspan="6" class="text-center" style="color: var(--text-muted); padding: 2rem;">No students registered under this tenant.</td></tr>`;
+        }
+
+        body.innerHTML = `
+          <div class="table-container">
+            <div class="table-header-bar">
+              <span class="table-header-title">Registered Students</span>
+              <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleStudentModal(true)" ${!['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'].includes(userRole) ? 'disabled' : ''}>
+                <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+                <span>Add Student</span>
+              </button>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Full Name</th>
+                  <th>Username</th>
+                  <th>Roll Number</th>
+                  <th>Class (Grade & Section)</th>
+                  <th>Parent Info</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${studRows}
+              </tbody>
+            </table>
+          </div>
+        `;
+        break;
+
+      case 'Teachers':
+        const teachers = await App.apiCall('/api/school/teachers');
+        let teachRows = '';
+
+        if (Array.isArray(teachers) && teachers.length > 0) {
+          teachers.forEach(t => {
+            const prof = t.teacherProfile || {};
+            teachRows += `
+              <tr>
+                <td><strong>${t.name}</strong></td>
+                <td>@${t.username}</td>
+                <td><code>${prof.employeeId || 'N/A'}</code></td>
+                <td><span class="btn-status status-active" style="padding: 2px 8px;">${prof.subject || 'N/A'}</span></td>
+                <td>${prof.qualification || 'N/A'}</td>
+                <td>
+                  <span class="btn-status status-active">${t.active ? 'ACTIVE' : 'INACTIVE'}</span>
+                </td>
+              </tr>
+            `;
+          });
+        } else {
+          teachRows = `<tr><td colspan="6" class="text-center" style="color: var(--text-muted); padding: 2rem;">No teachers registered under this tenant.</td></tr>`;
+        }
+
+        body.innerHTML = `
+          <div class="table-container">
+            <div class="table-header-bar">
+              <span class="table-header-title">Faculty Members</span>
+              <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleTeacherModal(true)" ${userRole !== 'SCHOOL_ADMIN' ? 'disabled' : ''}>
+                <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+                <span>Add Teacher</span>
+              </button>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Full Name</th>
+                  <th>Username</th>
+                  <th>Employee ID</th>
+                  <th>Subject</th>
+                  <th>Qualification</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${teachRows}
+              </tbody>
+            </table>
+          </div>
+        `;
+        break;
+
+      case 'Attendance':
+        const attLogs = await App.apiCall('/api/school/attendance');
+        const studList = await App.apiCall('/api/school/students');
+        
+        let attRows = '';
+        if (Array.isArray(attLogs) && attLogs.length > 0) {
+          attLogs.forEach(log => {
+            const labelMap = {
+              PRESENT: 'status-active',
+              ABSENT: 'status-inactive',
+              LATE: 'status-inactive',
+              EXCUSED: 'status-active'
+            };
+            if (['STUDENT', 'PARENT'].includes(userRole)) {
+              attRows += `
+                <tr>
+                  <td>${log.date}</td>
+                  <td>
+                    <span class="btn-status ${labelMap[log.status] || ''}">${log.status}</span>
+                  </td>
+                  <td>${log.remarks || ''}</td>
+                </tr>
+              `;
+            } else {
+              attRows += `
+                <tr>
+                  <td>${log.date}</td>
+                  <td><strong>${log.student ? log.student.name : 'Unknown'}</strong></td>
+                  <td>@${log.student ? log.student.username : ''}</td>
+                  <td>
+                    <span class="btn-status ${labelMap[log.status] || ''}">${log.status}</span>
+                  </td>
+                  <td>${log.remarks || ''}</td>
+                </tr>
+              `;
+            }
+          });
+        } else {
+          attRows = `<tr><td colspan="${['STUDENT', 'PARENT'].includes(userRole) ? 3 : 5}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No attendance records found.</td></tr>`;
+        }
+
+        if (['STUDENT', 'PARENT'].includes(userRole)) {
+          body.innerHTML = `
+            <div class="table-container">
+              <div class="table-header-bar">
+                <span class="table-header-title">My Attendance Record</span>
+              </div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${attRows}
+                </tbody>
+              </table>
+            </div>
+          `;
+        } else {
+          let selectOptions = '';
+          if (Array.isArray(studList)) {
+            selectOptions = studList.map(s => `<option value="${s.id}">${s.name} (@${s.username})</option>`).join('');
+          }
+
+          body.innerHTML = `
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem;">
+              <!-- Mark Attendance Form -->
+              <div class="card-glass" style="padding: 1.5rem; max-height: 480px;">
+                <h3 style="margin-bottom: 1.25rem;">Mark Attendance</h3>
+                <form onsubmit="DashboardPortal.handleMarkAttendance(event)">
+                  <div class="form-group">
+                    <label>Select Student *</label>
+                    <select class="input-control" id="att-student-id" required ${!selectOptions ? 'disabled' : ''}>
+                      ${selectOptions || '<option value="">No students available</option>'}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Date *</label>
+                    <input type="date" class="input-control" id="att-date" value="${new Date().toISOString().split('T')[0]}" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Attendance Status *</label>
+                    <select class="input-control" id="att-status" required>
+                      <option value="PRESENT">Present</option>
+                      <option value="ABSENT">Absent</option>
+                      <option value="LATE">Late</option>
+                      <option value="EXCUSED">Excused</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Remarks</label>
+                    <input type="text" class="input-control" id="att-remarks" placeholder="Optional notes">
+                  </div>
+                  <button type="submit" class="btn btn-primary w-full" ${!isWriteAllowed || !selectOptions ? 'disabled' : ''}>Save Attendance</button>
+                </form>
+              </div>
+
+              <!-- Logs list -->
+              <div class="table-container" style="margin-bottom: 0;">
+                <div class="table-header-bar">
+                  <span class="table-header-title">Attendance Logs</span>
+                </div>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Student Name</th>
+                      <th>Username</th>
+                      <th>Status</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${attRows}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        }
+        break;
+
+      case 'Fees':
+        const invoices = await App.apiCall('/api/school/fees');
+        let feeRows = '';
+
+        if (Array.isArray(invoices) && invoices.length > 0) {
+          invoices.forEach(inv => {
+            const isPaid = inv.status === 'PAID';
+            if (userRole === 'STUDENT') {
+              const actionBtn = isPaid ? `
+                <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.downloadReceipt('${inv.id}', '${user.name}', ${inv.amount}, '${inv.paymentDate}')">
+                  Download Receipt
+                </button>
+              ` : `
+                <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.openPayOnlineModal('${inv.id}', ${inv.amount})">
+                  Pay Online
+                </button>
+              `;
+
+              feeRows += `
+                <tr>
+                  <td><code>#${inv.id.substring(0, 8)}</code></td>
+                  <td>$${inv.amount.toFixed(2)}</td>
+                  <td>${inv.dueDate}</td>
+                  <td>
+                    <span class="btn-status ${isPaid ? 'status-active' : 'status-inactive'}">${inv.status}</span>
+                  </td>
+                  <td>${inv.paymentDate || 'N/A'} ${inv.paymentMethod ? `(${inv.paymentMethod})` : ''}</td>
+                  <td>${actionBtn}</td>
+                </tr>
+              `;
+            } else {
+              feeRows += `
+                <tr>
+                  <td><code>#${inv.id.substring(0, 8)}</code></td>
+                  <td><strong>${inv.student ? inv.student.name : 'Unknown'}</strong></td>
+                  <td>$${inv.amount.toFixed(2)}</td>
+                  <td>${inv.dueDate}</td>
+                  <td>
+                    <span class="btn-status ${isPaid ? 'status-active' : 'status-inactive'}">${inv.status}</span>
+                  </td>
+                  <td>${inv.paymentDate || 'N/A'} ${inv.paymentMethod ? `(${inv.paymentMethod})` : ''}</td>
+                  <td>
+                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.payInvoice('${inv.id}')" ${isPaid ? 'disabled' : ''}>
+                      Record Payment
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }
+          });
+        } else {
+          feeRows = `<tr><td colspan="${userRole === 'STUDENT' ? 6 : 7}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No fee invoices issued.</td></tr>`;
+        }
+
+        const feeHeaderBtn = ['SCHOOL_ADMIN', 'ACCOUNTANT'].includes(userRole) ? `
+          <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.openInvoiceModal()">
+            <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+            <span>Issue Invoice</span>
+          </button>
+        ` : '';
+
+        const feeTableHeader = userRole === 'STUDENT' ? `
+          <tr>
+            <th>Invoice ID</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Payment Details</th>
+            <th>Action</th>
+          </tr>
+        ` : `
+          <tr>
+            <th>Invoice ID</th>
+            <th>Student Borrower</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Payment Details</th>
+            <th>Action</th>
+          </tr>
+        `;
+
+        body.innerHTML = `
+          <div class="table-container">
+            <div class="table-header-bar">
+              <span class="table-header-title">Billing Invoices</span>
+              ${feeHeaderBtn}
+            </div>
+            <table class="data-table">
+              <thead>
+                ${feeTableHeader}
+              </thead>
+              <tbody>
+                ${feeRows}
+              </tbody>
+            </table>
+          </div>
+        `;
+        break;
+
+      case 'Exams':
+        const exams = await App.apiCall('/api/school/exams');
+        let examRows = '';
+
+        if (Array.isArray(exams) && exams.length > 0) {
+          exams.forEach(e => {
+            if (userRole === 'STUDENT') {
+              const myResult = (e.results && e.results[0]) || {};
+              const scoreText = myResult.marksObtained !== undefined ? `${myResult.marksObtained} / ${e.maxMarks}` : 'N/A';
+              examRows += `
+                <tr>
+                  <td><strong>${e.examName}</strong></td>
+                  <td>${e.subject}</td>
+                  <td>${e.examDate}</td>
+                  <td><span class="btn-status status-active">${scoreText}</span></td>
+                  <td>${myResult.grade || 'N/A'}</td>
+                  <td>${myResult.remarks || 'N/A'}</td>
+                </tr>
+              `;
+            } else {
+              examRows += `
+                <tr>
+                  <td><strong>${e.examName}</strong></td>
+                  <td>${e.subject}</td>
+                  <td>Max score: ${e.maxMarks}</td>
+                  <td>${e.examDate}</td>
+                  <td>
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.openMarksModal('${e.id}', '${e.examName}', ${e.maxMarks})">
+                      Post Grades
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }
+          });
+        } else {
+          examRows = `<tr><td colspan="${userRole === 'STUDENT' ? 6 : 5}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No exams scheduled.</td></tr>`;
+        }
+
+        const examHeaderBtn = ['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'].includes(userRole) ? `
+          <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleExamModal(true)">
+            <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+            <span>Schedule Exam</span>
+          </button>
+        ` : '';
+
+        const examTableHeader = userRole === 'STUDENT' ? `
+          <tr>
+            <th>Exam Title</th>
+            <th>Subject</th>
+            <th>Exam Date</th>
+            <th>My Score</th>
+            <th>Grade</th>
+            <th>Remarks</th>
+          </tr>
+        ` : `
+          <tr>
+            <th>Exam Title</th>
+            <th>Subject</th>
+            <th>Max Marks</th>
+            <th>Exam Date</th>
+            <th>Action</th>
+          </tr>
+        `;
+
+        body.innerHTML = `
+          <div class="table-container">
+            <div class="table-header-bar">
+              <span class="table-header-title">Scheduled Assessments</span>
+              ${examHeaderBtn}
+            </div>
+            <table class="data-table">
+              <thead>
+                ${examTableHeader}
+              </thead>
+              <tbody>
+                ${examRows}
+              </tbody>
+            </table>
+          </div>
+        `;
+        break;
+
+      case 'Library':
+        const books = await App.apiCall('/api/school/books');
+        const checkouts = await App.apiCall('/api/school/books/issues');
+
+        let bookRows = '';
+        if (Array.isArray(books) && books.length > 0) {
+          books.forEach(b => {
+            if (userRole === 'STUDENT') {
+              bookRows += `
+                <tr>
+                  <td><strong>${b.title}</strong></td>
+                  <td>${b.author}</td>
+                  <td>${b.isbn || 'N/A'}</td>
+                  <td>${b.available} / ${b.quantity} copies available</td>
+                </tr>
+              `;
+            } else {
+              bookRows += `
+                <tr>
+                  <td><strong>${b.title}</strong></td>
+                  <td>${b.author}</td>
+                  <td>${b.isbn || 'N/A'}</td>
+                  <td>${b.available} / ${b.quantity} copies available</td>
+                  <td>
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.openCheckoutModal('${b.id}', '${b.title}')" ${b.available <= 0 ? 'disabled' : ''}>
+                      Check Out
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }
+          });
+        } else {
+          bookRows = `<tr><td colspan="${userRole === 'STUDENT' ? 4 : 5}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No books catalogued in the library.</td></tr>`;
+        }
+
+        let checkoutRows = '';
+        if (Array.isArray(checkouts) && checkouts.length > 0) {
+          checkouts.forEach(c => {
+            const isReturned = c.status === 'RETURNED';
+            if (userRole === 'STUDENT') {
+              checkoutRows += `
+                <tr>
+                  <td><strong>${c.book ? c.book.title : 'Unknown'}</strong></td>
+                  <td>${c.issueDate}</td>
+                  <td>
+                    <span class="btn-status ${isReturned ? 'status-active' : 'status-inactive'}">${c.status}</span>
+                  </td>
+                  <td>${c.returnDate || 'N/A'}</td>
+                </tr>
+              `;
+            } else {
+              checkoutRows += `
+                <tr>
+                  <td><strong>${c.book ? c.book.title : 'Unknown'}</strong></td>
+                  <td>${c.student ? c.student.name : 'Unknown'}</td>
+                  <td>${c.issueDate}</td>
+                  <td>
+                    <span class="btn-status ${isReturned ? 'status-active' : 'status-inactive'}">${c.status}</span>
+                  </td>
+                  <td>${c.returnDate || 'N/A'}</td>
+                  <td>
+                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.returnBook('${c.id}')" ${isReturned ? 'disabled' : ''}>
+                      Return
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }
+          });
+        } else {
+          checkoutRows = `<tr><td colspan="${userRole === 'STUDENT' ? 4 : 6}" class="text-center" style="color: var(--text-muted); padding: 1.5rem;">No active checkout logs.</td></tr>`;
+        }
+
+        const libHeaderBtn = ['SCHOOL_ADMIN', 'LIBRARIAN'].includes(userRole) ? `
+          <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleBookModal(true)">
+            <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+            <span>Add Book</span>
+          </button>
+        ` : '';
+
+        const catalogHeader = userRole === 'STUDENT' ? `
+          <tr>
+            <th>Book Title</th>
+            <th>Author</th>
+            <th>ISBN</th>
+            <th>Availability</th>
+          </tr>
+        ` : `
+          <tr>
+            <th>Book Title</th>
+            <th>Author</th>
+            <th>ISBN</th>
+            <th>Availability</th>
+            <th>Action</th>
+          </tr>
+        `;
+
+        const checkoutHeader = userRole === 'STUDENT' ? `
+          <tr>
+            <th>Book Title</th>
+            <th>Issue Date</th>
+            <th>Status</th>
+            <th>Return Date</th>
+          </tr>
+        ` : `
+          <tr>
+            <th>Book Title</th>
+            <th>Borrower</th>
+            <th>Issue Date</th>
+            <th>Status</th>
+            <th>Return Date</th>
+            <th>Action</th>
+          </tr>
+        `;
+
+        body.innerHTML = `
+          <!-- Catalog -->
+          <div class="table-container">
+            <div class="table-header-bar">
+              <span class="table-header-title">Library Catalogue</span>
+              ${libHeaderBtn}
+            </div>
+            <table class="data-table">
+              <thead>
+                ${catalogHeader}
+              </thead>
+              <tbody>
+                ${bookRows}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Checkout Logs -->
+          <div class="table-container">
+            <div class="table-header-bar">
+              <span class="table-header-title">Active Checkout Logs</span>
+            </div>
+            <table class="data-table">
+              <thead>
+                ${checkoutHeader}
+              </thead>
+              <tbody>
+                ${checkoutRows}
+              </tbody>
+            </table>
+          </div>
+        `;
+        break;
+
+      case 'Audit Logs':
+        const logs = await App.apiCall('/api/admin/audit-logs'); // Reuse the admin logs query or custom
+        let rows = '';
+        if (logs && logs.length > 0) {
+          logs.forEach(log => {
+            rows += `
+              <tr>
+                <td>${new Date(log.createdAt).toLocaleString()}</td>
+                <td><code>${log.action}</code></td>
+                <td>${log.details}</td>
+                <td><code style="font-size:11px;">${log.ipAddress || '127.0.0.1'}</code></td>
+              </tr>
+            `;
+          });
+        } else {
+          rows = `<tr><td colspan="4" class="text-center" style="color: var(--text-muted); padding: 2rem;">No audit logs registered.</td></tr>`;
+        }
+
+        body.innerHTML = `
+          <div class="table-container">
+            <div class="table-header-bar">
+              <span class="table-header-title">Action Event Logs</span>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Action</th>
+                  <th>Details</th>
+                  <th>IP Address</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows}
+              </tbody>
+            </table>
+          </div>
+        `;
+        break;
+    }
+  },
+
+  // ==========================================
+  // SCHOOL PORTAL EVENT ACTIONS
+  // ==========================================
+
+  // Modals Toggles
+  toggleStudentModal(show) {
+    const modal = document.getElementById('student-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  toggleTeacherModal(show) {
+    const modal = document.getElementById('teacher-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  toggleInvoiceModal(show) {
+    const modal = document.getElementById('invoice-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  toggleExamModal(show) {
+    const modal = document.getElementById('exam-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  toggleMarksModal(show) {
+    const modal = document.getElementById('marks-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  toggleBookModal(show) {
+    const modal = document.getElementById('book-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  toggleCheckoutModal(show) {
+    const modal = document.getElementById('checkout-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  // Event handlers for submissions
+  async handleCreateStudent(event) {
+    event.preventDefault();
+    const name = document.getElementById('modal-stud-name').value;
+    const rollNumber = document.getElementById('modal-stud-roll').value;
+    const grade = document.getElementById('modal-stud-grade').value;
+    const section = document.getElementById('modal-stud-section').value;
+    const parentName = document.getElementById('modal-stud-parent').value;
+    const parentPhone = document.getElementById('modal-stud-parent-phone').value;
+    const username = document.getElementById('modal-stud-username').value;
+    const email = document.getElementById('modal-stud-email').value;
+    const password = document.getElementById('modal-stud-password').value;
+
+    const res = await App.apiCall('/api/school/students', {
+      method: 'POST',
+      body: JSON.stringify({ name, rollNumber, grade, section, parentName, parentPhone, username, email, password })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Student registered successfully!', 'success');
+      this.toggleStudentModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async handleCreateTeacher(event) {
+    event.preventDefault();
+    const name = document.getElementById('modal-teach-name').value;
+    const employeeId = document.getElementById('modal-teach-empid').value;
+    const subject = document.getElementById('modal-teach-subject').value;
+    const qualification = document.getElementById('modal-teach-qual').value;
+    const username = document.getElementById('modal-teach-username').value;
+    const email = document.getElementById('modal-teach-email').value;
+    const password = document.getElementById('modal-teach-password').value;
+
+    const res = await App.apiCall('/api/school/teachers', {
+      method: 'POST',
+      body: JSON.stringify({ name, employeeId, subject, qualification, username, email, password })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Teacher registered successfully!', 'success');
+      this.toggleTeacherModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async handleMarkAttendance(event) {
+    event.preventDefault();
+    const studentId = document.getElementById('att-student-id').value;
+    const date = document.getElementById('att-date').value;
+    const status = document.getElementById('att-status').value;
+    const remarks = document.getElementById('att-remarks').value;
+
+    const res = await App.apiCall('/api/school/attendance', {
+      method: 'POST',
+      body: JSON.stringify({ studentId, date, status, remarks })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Attendance recorded!', 'success');
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async openInvoiceModal() {
+    const studs = await App.apiCall('/api/school/students');
+    const select = document.getElementById('modal-inv-stud');
+    if (!select) return;
+
+    select.innerHTML = Array.isArray(studs) ? studs.map(s => `<option value="${s.id}">${s.name} (@${s.username})</option>`).join('') : '<option value="">No students registered</option>';
+    this.toggleInvoiceModal(true);
+  },
+
+  async handleCreateInvoice(event) {
+    event.preventDefault();
+    const studentId = document.getElementById('modal-inv-stud').value;
+    const amount = document.getElementById('modal-inv-amount').value;
+    const dueDate = document.getElementById('modal-inv-duedate').value;
+
+    const res = await App.apiCall('/api/school/fees', {
+      method: 'POST',
+      body: JSON.stringify({ studentId, amount, dueDate })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Billing invoice issued!', 'success');
+      this.toggleInvoiceModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async payInvoice(id) {
+    App.showToast('Recording invoice payment...', 'info');
+    const res = await App.apiCall(`/api/school/fees/${id}/pay`, {
+      method: 'PUT',
+      body: JSON.stringify({ paymentMethod: 'CASH' })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Invoice marked as PAID.', 'success');
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async handleCreateExam(event) {
+    event.preventDefault();
+    const examName = document.getElementById('modal-exam-name').value;
+    const subject = document.getElementById('modal-exam-subject').value;
+    const maxMarks = document.getElementById('modal-exam-max').value;
+    const examDate = document.getElementById('modal-exam-date').value;
+
+    const res = await App.apiCall('/api/school/exams', {
+      method: 'POST',
+      body: JSON.stringify({ examName, subject, maxMarks, examDate })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Assessment scheduled successfully!', 'success');
+      this.toggleExamModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async loadExamResultsList(examId, maxMarks) {
+    const tableBody = document.getElementById('modal-results-table-body');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-center" style="font-size:11px; padding:0.5rem;">Loading grades...</td></tr>`;
+
+    const results = await App.apiCall(`/api/school/exams/${examId}/results`);
+    let rowsHtml = '';
+    if (Array.isArray(results) && results.length > 0) {
+      results.forEach(r => {
+        rowsHtml += `
+          <tr>
+            <td><strong>${r.student ? r.student.name : 'Unknown'}</strong></td>
+            <td>${r.marksObtained} / ${maxMarks}</td>
+            <td>${r.grade || 'N/A'}</td>
+            <td>${r.remarks || ''}</td>
+          </tr>
+        `;
+      });
+    } else {
+      rowsHtml = `<tr><td colspan="4" class="text-center" style="color:var(--text-muted); font-size:11px; padding:1rem;">No grades recorded yet.</td></tr>`;
+    }
+    tableBody.innerHTML = rowsHtml;
+  },
+
+  async openMarksModal(examId, name, maxMarks) {
+    const studs = await App.apiCall('/api/school/students');
+    const select = document.getElementById('modal-score-stud');
+    if (!select) return;
+
+    document.getElementById('modal-score-exam-id').value = examId;
+    document.getElementById('modal-score-exam-id').setAttribute('data-max-marks', maxMarks);
+    document.getElementById('marks-modal-title').textContent = `Grade - ${name} (Max score: ${maxMarks})`;
+    document.getElementById('modal-score-marks').max = maxMarks;
+
+    select.innerHTML = Array.isArray(studs) ? studs.map(s => `<option value="${s.id}">${s.name} (@${s.username})</option>`).join('') : '<option value="">No students registered</option>';
+    this.toggleMarksModal(true);
+    await this.loadExamResultsList(examId, maxMarks);
+  },
+
+  async handlePostScore(event) {
+    event.preventDefault();
+    const examId = document.getElementById('modal-score-exam-id').value;
+    const studentId = document.getElementById('modal-score-stud').value;
+    const marksObtained = document.getElementById('modal-score-marks').value;
+    const grade = document.getElementById('modal-score-grade').value;
+    const remarks = document.getElementById('modal-score-remarks').value;
+    const maxMarks = document.getElementById('modal-score-exam-id').getAttribute('data-max-marks') || 100;
+
+    const res = await App.apiCall(`/api/school/exams/${examId}/results`, {
+      method: 'POST',
+      body: JSON.stringify({ studentId, marksObtained, grade, remarks })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Student grade posted successfully!', 'success');
+      document.getElementById('modal-score-marks').value = '';
+      document.getElementById('modal-score-grade').value = '';
+      document.getElementById('modal-score-remarks').value = '';
+      await this.loadExamResultsList(examId, maxMarks);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async handleCreateBook(event) {
+    event.preventDefault();
+    const title = document.getElementById('modal-book-title').value;
+    const author = document.getElementById('modal-book-author').value;
+    const isbn = document.getElementById('modal-book-isbn').value;
+    const quantity = document.getElementById('modal-book-qty').value;
+
+    const res = await App.apiCall('/api/school/books', {
+      method: 'POST',
+      body: JSON.stringify({ title, author, isbn, quantity })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Book added to library catalog!', 'success');
+      this.toggleBookModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async openCheckoutModal(bookId, title) {
+    const studs = await App.apiCall('/api/school/students');
+    const select = document.getElementById('modal-issue-stud');
+    if (!select) return;
+
+    document.getElementById('modal-issue-book-id').value = bookId;
+    document.getElementById('modal-issue-book-title').value = title;
+
+    select.innerHTML = Array.isArray(studs) ? studs.map(s => `<option value="${s.id}">${s.name} (@${s.username})</option>`).join('') : '<option value="">No students registered</option>';
+    this.toggleCheckoutModal(true);
+  },
+
+  async handleIssueBook(event) {
+    event.preventDefault();
+    const bookId = document.getElementById('modal-issue-book-id').value;
+    const studentId = document.getElementById('modal-issue-stud').value;
+    const issueDate = new Date().toISOString().split('T')[0];
+
+    const res = await App.apiCall(`/api/school/books/${bookId}/issue`, {
+      method: 'POST',
+      body: JSON.stringify({ studentId, issueDate })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Book checked out!', 'success');
+      this.toggleCheckoutModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async returnBook(id) {
+    App.showToast('Returning book to library...', 'info');
+    const res = await App.apiCall(`/api/school/books/issue/${id}/return`, {
+      method: 'PUT'
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Book successfully returned to catalog.', 'success');
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  openPayOnlineModal(invoiceId, amount) {
+    document.getElementById('modal-pay-invoice-id').value = invoiceId;
+    document.getElementById('modal-pay-amount').value = `$${amount.toFixed(2)}`;
+    document.getElementById('modal-pay-cardname').value = App.state.user.name;
+    this.togglePayOnlineModal(true);
+  },
+
+  togglePayOnlineModal(show) {
+    const modal = document.getElementById('pay-online-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  async handlePayOnline(event) {
+    event.preventDefault();
+    const id = document.getElementById('modal-pay-invoice-id').value;
+
+    App.showToast('Processing online sandbox payment...', 'info');
+
+    const res = await App.apiCall(`/api/school/fees/${id}/pay`, {
+      method: 'PUT',
+      body: JSON.stringify({ paymentMethod: 'ONLINE_PORTAL' })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Payment successful! Receipt is now available.', 'success');
+      this.togglePayOnlineModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  downloadReceipt(invoiceId, studentName, amount, date) {
+    const formattedDate = date && date !== 'N/A' && date !== 'null' ? date : new Date().toISOString().split('T')[0];
+    const receiptContent = `
+=========================================
+          RECEIPT OF PAYMENT
+=========================================
+Invoice ID: ${invoiceId}
+School: ${App.state.user.schoolName}
+Student: ${studentName}
+Amount Paid: $${amount.toFixed(2)}
+Status: PAID
+Payment Date: ${formattedDate}
+Payment Method: ONLINE_PORTAL
+
+Thank you for your payment!
+=========================================
     `;
+    const blob = new Blob([receiptContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Receipt-${invoiceId.substring(0,8)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    App.showToast('Receipt downloaded successfully!', 'success');
   }
 };
 

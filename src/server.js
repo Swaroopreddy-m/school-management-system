@@ -20,6 +20,7 @@ app.use('/api/setup', require('./routes/setup'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/developer', require('./routes/developer'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/school', require('./routes/school'));
 
 // Fallback to index.html for Single Page Application routing
 app.get('*', (req, res) => {

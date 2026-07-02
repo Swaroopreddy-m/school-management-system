@@ -250,16 +250,47 @@ router.post('/users', async (req, res) => {
 
     const hashedUserPassword = await bcrypt.hash(password, 10);
 
-    const user = await prisma.schoolUser.create({
-      data: {
-        schoolId,
-        name,
-        email: email.toLowerCase(),
-        username: username.toLowerCase(),
-        passwordHash: hashedUserPassword,
-        role,
-        active: true
+    const {
+      employeeId, subject, qualification,
+      rollNumber, grade, section, parentName, parentPhone
+    } = req.body;
+
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.schoolUser.create({
+        data: {
+          schoolId,
+          name,
+          email: email.toLowerCase(),
+          username: username.toLowerCase(),
+          passwordHash: hashedUserPassword,
+          role,
+          active: true
+        }
+      });
+
+      if (role === 'TEACHER') {
+        await tx.teacherProfile.create({
+          data: {
+            userId: newUser.id,
+            employeeId: employeeId || `EMP-${newUser.username.toUpperCase()}`,
+            subject: subject || 'General',
+            qualification: qualification || 'B.Ed.'
+          }
+        });
+      } else if (role === 'STUDENT') {
+        await tx.studentProfile.create({
+          data: {
+            userId: newUser.id,
+            rollNumber: rollNumber || `ROLL-${newUser.username.toUpperCase()}`,
+            grade: grade || 'Grade 1',
+            section: section || 'A',
+            parentName: parentName || '',
+            parentPhone: parentPhone || ''
+          }
+        });
       }
+
+      return newUser;
     });
 
     await prisma.auditLog.create({

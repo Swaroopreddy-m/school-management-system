@@ -1,32 +1,43 @@
-# Walkthrough: Stage 2 – Super Admin Module & School Users Integration
+# Walkthrough: Stage 3 – Academic & School Modules
 
-We have successfully completed Stage 2 of the SaaS School Management System. This phase focuses on database-backed school tenants, user creation under schools, tenant isolation, and School User login.
+We have completed Stage 3 of the SaaS School Management System. This phase introduces database profiles for Level 3 users (Students, Teachers) and implements the core Academic Modules: Attendance, Fees, Exams, and Library cataloguing.
 
 ---
 
-## 🛠️ Stage 2 Implementations
+## 🛠️ Stage 3 Implementations
 
-### 1. Database schema expansion
-- Added `subscriptionTier` and `features` fields to the `School` model in [schema.prisma](file:///c:/Users/user/Documents/Projects/school-management-system/prisma/schema.prisma) to track tenant level permissions and billing tiers.
-- Added `SchoolUser` model representing all Level 3 school employees/users (School Admin, Principal, Teacher, Student, Parent, Accountant, Librarian, Receptionist). Scoped usernames to be unique per school using `@@unique([schoolId, username])`.
+### 1. Database Schema Additions
+In [schema.prisma](file:///c:/Users/user/Documents/Projects/school-management-system/prisma/schema.prisma), we added the following entities:
+- `StudentProfile`: Scopes student identity including Roll Number, Class Grade, Section, Parent Name, Parent Phone.
+- `TeacherProfile`: Scopes faculty identity including Employee ID, Primary Subject, and Qualification.
+- `Attendance`: Tracks student check-ins, dates, status (`PRESENT`, `ABSENT`, `LATE`, `EXCUSED`), and teacher remarks.
+- `Exam`: Schedules examinations with exam names, subject lines, dates, and maximum score caps.
+- `ExamResult`: Stores student scores (marks obtained), grade indicators, and teacher remarks.
+- `FeeInvoice`: Issues bills to students with specific amounts, due dates, payment dates, and payment states (`UNPAID`, `PAID`).
+- `Book`: Manages library catalogs including titles, authors, ISBN identifiers, copy counts, and current counts available.
+- `BookIssue`: Tracks checked out items, issuing dates, returns, and checkout states (`ISSUED`, `RETURNED`).
 
-### 2. Atomic School Registration
-- Refactored `POST /api/admin/schools` inside [admin.js](file:///c:/Users/user/Documents/Projects/school-management-system/src/routes/admin.js). Now, when a Super Admin registers a school, the Express server atomically creates the school and its default `SCHOOL_ADMIN` user inside a transaction, hashing passwords via `bcryptjs`.
+---
 
-### 3. School User Management & Configuration
-- Created `GET /api/admin/users`, `POST /api/admin/users`, and `PUT /api/admin/users/:id/status` inside [admin.js](file:///c:/Users/user/Documents/Projects/school-management-system/src/routes/admin.js) to allow Super Admins to list all school users, register secondary school users (e.g. Teachers, Principals) under their schools, and toggle their active state.
-- Created `PUT /api/admin/schools/:id/config` allowing the configuration of subscription tiers and enabling specific module features.
+### 2. Backend Academic APIs
+Created the unified route file [school.js](file:///c:/Users/user/Documents/Projects/school-management-system/src/routes/school.js) which provides standard REST APIs under `/api/school/*`.
+- **Tenant Isolation**: Every database query filters by `req.user.schoolId` (extracted from the authenticated JWT session), ensuring school data never leaks across other schools.
+- **RBAC Role Guards**: Enforces sub-role access checks. For example:
+  - Registers students/teachers: Restricted to `SCHOOL_ADMIN`.
+  - Marks attendance / Posts grades: Restricted to `SCHOOL_ADMIN`, `PRINCIPAL`, and `TEACHER`.
+  - Generates bills / Processes payments: Restricted to `SCHOOL_ADMIN` and `ACCOUNTANT`.
+  - Catalogues books / Issues checkouts: Restricted to `SCHOOL_ADMIN` and `LIBRARIAN`.
 
-### 4. Database-Backed Authentication
-- Refactored School Login inside [auth.js](file:///c:/Users/user/Documents/Projects/school-management-system/src/routes/auth.js). School login checks for an active school code, performs a database lookup on `SchoolUser`, compares passwords using `bcryptjs`, and issues JWTs holding their database role.
+---
 
-### 5. Frontend Dashboard Upgrades
-- **Super Admin Portal** ([dashboard.js](file:///c:/Users/user/Documents/Projects/school-management-system/public/js/dashboard.js)):
-  - Updated the **Schools** tab to show subscription plan tiers and active modules. Added a settings modal to edit these parameters.
-  - Updated the **Users** tab to display a list of all database-backed school employees. Added a modal allowing Super Admins to register secondary school employees.
-- **School User Portal** ([dashboard.js](file:///c:/Users/user/Documents/Projects/school-management-system/public/js/dashboard.js)):
-  - Replaced the mock profile data with the user's authentic name and role from the JWT session.
-  - Dynamic menus now load automatically based on their authentic role.
+### 3. Frontend School Portal Dashboard
+We upgraded the user interface in [dashboard.js](file:///c:/Users/user/Documents/Projects/school-management-system/public/js/dashboard.js) to support interactive panels for all academic options:
+- **Dashboard**: Displays a modern analytics card grid displaying school stats (Total Students, Faculty count, Catalogued books, Unpaid bills) and quick-action shortcuts.
+- **Students & Teachers Tabs**: Renders interactive grids listing registered students and teachers alongside full registration forms.
+- **Attendance Tab**: Renders a calendar picker, checklist to submit status records, and logs.
+- **Fees Tab**: Lists fee invoices. Authorized users can issue new invoices and register CASH payments.
+- **Exams Tab**: Lists exams. Allows scheduling new exams and recording grades/remarks per student.
+- **Library Tab**: Lists books, catalogues new titles, tracks active loans, and records returns.
 
 ---
 
@@ -51,9 +62,9 @@ Response Body: {
   message: 'System initialized successfully.',
   data: {
     platformName: 'EduPortal SaaS',
-    developer: { id: '70c27c7a-ae8b-433b-8a0c-d84e57d1b941', username: 'devroot' },
+    developer: { id: '3b15268a-6bcb-4e15-b19c-d4eacae505d0', username: 'devroot' },
     superAdmin: {
-      id: 'c991dd6c-77d5-413f-9091-e755821f7f7a',
+      id: '8015de81-e3d8-4752-adb5-2a099270557f',
       username: 'sarah_admin'
     }
   }
@@ -91,42 +102,71 @@ Response Body Name: Mark Teacher
 Response Status: 200
 Response Body Role: TEACHER
 
+11. Registering a student user under Oakridge...
+Response Status: 201
+Response Body Name: Harry Potter
+
+12. Marking attendance for student...
+Response Status: 200
+Response Body Status: PRESENT
+
+13. Scheduling an assessment/exam...
+Response Status: 201
+Response Body Exam Name: Defense Against the Dark Arts Quiz
+
+14. Posting exam result (grade) for student...
+Response Status: 200
+Response Body Marks: 48
+
+15. Generating student fee invoice...
+Response Status: 201
+Response Body Amount: 250
+
+16. Recording CASH payment for invoice...
+Response Status: 200
+Response Body Status: PAID
+
+17. Adding book to library catalogue...
+Response Status: 201
+Response Body Title: A History of Magic
+
+18. Checking out book to student borrower...
+Response Status: 201
+Response Body Status: ISSUED
+
+19. Returning book to library catalog...
+Response Status: 200
+Response Body Status: RETURNED
+
 --- All verification checks passed successfully! ---
 ```
 
 ---
 
-## 🚀 Local Execution & Seeded Credentials
+## 🔒 Role-Based UI Security & Data Privacy Enhancements
 
-### 1. Run the Development Server
-```powershell
-npm run dev
-```
-
-### 2. Log In with Seeded Credentials
-- **Developer Login**:
-  - Username: `devroot`
-  - Password: `password123`
-- **Super Admin Login**:
-  - Username: `sarah_admin`
-  - Password: `password123`
-- **School Admin Login** (Oakridge Academy):
-  - School Code: `OAK-01`
-  - Username: `sarah_principal`
-  - Password: `password123`
-- **School Teacher Login** (Oakridge Academy):
-  - School Code: `OAK-01`
-  - Username: `mark_teacher`
-  - Password: `password123`
+Based on detailed validation, we implemented strict role-based client and backend enhancements:
+1. **Teacher Actions**: Extended student registration capabilities to `TEACHER` and `PRINCIPAL` roles (both backend `/api/school/students` and frontend views).
+2. **Student & Parent View Isolation**:
+   - **Dashboard**: Restricted the "Register Student" quick link so it is hidden for students and parents.
+   - **Attendance logs**: Completely hid the mark attendance submission panel. Students are restricted to viewing only their own check-in dates.
+   - **Assessments (Exams)**: Restricted students from seeing other students' results. They now see a simplified card list showing only their own marks, grades, and teacher feedback.
+   - **Fees and Invoicing**: Removed billing forms and payment collection actions. Students are restricted to viewing only their own fee invoices.
+   - **Library checkout catalog**: Removed cataloguing controls, book checkouts, and return check-ins. Students are restricted to viewing active checkouts and copy availability of the catalog.
+3. **Super Admin Profile Initialization**: Refactored `POST /api/admin/users` to atomically spin up `TeacherProfile` and `StudentProfile` default values, resolving initial "N/A" details on secondary staff.
 
 ---
 
-## 🔄 Re-running the Setup Wizard & Flow
-If you wish to test the First-Run Setup Wizard yourself, reset the database state:
-1. Stop the running server.
-2. Delete the file `prisma/dev.db` (and any database journal files).
-3. Run the migrations:
+## 🚀 Execution & Credentials
+
+To spin up the environment and run:
+1. Start the server:
    ```powershell
-   npm run db:migrate
+   npm run dev
    ```
-4. Start the server (`npm run dev`) and refresh `http://localhost:3000` to access the Setup Wizard.
+2. Log in at `http://localhost:3000` using the credentials:
+   - **Developer**: `devroot` / `password123`
+   - **Super Admin**: `sarah_admin` / `password123`
+   - **School Admin** (Oakridge Academy): School Code `OAK-01`, Username `sarah_principal`, Password `password123`
+   - **School Teacher** (Oakridge Academy): School Code `OAK-01`, Username `mark_teacher`, Password `password123`
+   - **School Student** (Oakridge Academy): School Code `OAK-01`, Username `harry_potter`, Password `password123`
