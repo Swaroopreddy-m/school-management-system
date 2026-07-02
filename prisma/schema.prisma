@@ -50,20 +50,38 @@ model SuperAdmin {
 }
 
 model School {
-  id          String      @id @default(uuid())
-  schoolName  String
-  schoolCode  String      @unique
-  email       String
-  phone       String
-  address     String
-  city        String
-  country     String
-  timezone    String
-  logo        String?     // path or base64
-  status      String      @default("ACTIVE") // ACTIVE, INACTIVE
-  createdBy   String
-  creator     SuperAdmin  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  createdAt   DateTime    @default(now())
+  id               String       @id @default(uuid())
+  schoolName       String
+  schoolCode       String       @unique
+  email            String
+  phone            String
+  address          String
+  city             String
+  country          String
+  timezone         String
+  logo             String?      // path or base64
+  status           String       @default("ACTIVE") // ACTIVE, INACTIVE
+  subscriptionTier String       @default("BASIC")
+  features         String       @default("attendance,fees,exams,library")
+  createdBy        String
+  creator          SuperAdmin   @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+  users            SchoolUser[]
+}
+
+model SchoolUser {
+  id           String   @id @default(uuid())
+  schoolId     String
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name         String
+  email        String
+  username     String
+  passwordHash String
+  role         String   // SCHOOL_ADMIN, PRINCIPAL, VICE_PRINCIPAL, TEACHER, STUDENT, PARENT, ACCOUNTANT, LIBRARIAN, RECEPTIONIST
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@unique([schoolId, username])
 }
 
 model AuditLog {

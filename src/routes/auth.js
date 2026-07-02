@@ -155,36 +155,46 @@ router.post('/school/login', authLimiter, async (req, res) => {
       return res.status(403).json({ message: 'This school is inactive. Contact Super Admin.' });
     }
 
-    // Dynamic Role stub matching the specifications
-    // In future phases, we will query the SchoolUser DB table.
-    // For now, mapping usernames (admin, principal, teacher, student, accountant) to mock login roles.
-    let resolvedRole = 'LIBRARIAN'; // fallback
-    const normalizedUser = username.toLowerCase();
-    if (normalizedUser.includes('admin')) resolvedRole = 'SCHOOL_ADMIN';
-    else if (normalizedUser.includes('principal')) resolvedRole = 'PRINCIPAL';
-    else if (normalizedUser.includes('teacher')) resolvedRole = 'TEACHER';
-    else if (normalizedUser.includes('student')) resolvedRole = 'STUDENT';
-    else if (normalizedUser.includes('parent')) resolvedRole = 'PARENT';
-    else if (normalizedUser.includes('accountant')) resolvedRole = 'ACCOUNTANT';
-    else if (normalizedUser.includes('receptionist')) resolvedRole = 'RECEPTIONIST';
+    // Verify school user exists inside this school
+    const user = await prisma.schoolUser.findUnique({
+      where: {
+        schoolId_username: {
+          schoolId: school.id,
+          username: username.toLowerCase()
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+    if (!user.active) {
+      return res.status(403).json({ message: 'This user account is inactive.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
 
     const token = generateToken({
-      id: `school-user-mock-id-${resolvedRole}`,
-      username: username,
-      name: `${username.charAt(0).toUpperCase() + username.slice(1)} (Demo)`,
+      id: user.id,
+      username: user.username,
+      name: user.name,
       role: 'SCHOOL_USER',
-      schoolUserRole: resolvedRole, // principal, teacher, etc.
+      schoolUserRole: user.role, // SCHOOL_ADMIN, PRINCIPAL, TEACHER, etc.
       schoolId: school.id,
       schoolName: school.schoolName
     });
 
     await prisma.auditLog.create({
       data: {
-        actorId: `mock-${resolvedRole}`,
-        actorName: username,
+        actorId: user.id,
+        actorName: user.name,
         actorType: 'SCHOOL_USER',
         action: 'SCHOOL_USER_LOGIN',
-        details: `Logged in as ${resolvedRole} at school ${school.schoolName} (${school.schoolCode}).`,
+        details: `Logged in as "${user.role}" at school "${school.schoolName}" (${school.schoolCode}).`,
         ipAddress: req.ip
       }
     });
@@ -192,11 +202,11 @@ router.post('/school/login', authLimiter, async (req, res) => {
     return res.json({
       token,
       user: {
-        id: `school-user-mock-id-${resolvedRole}`,
-        username: username,
-        name: `${username.charAt(0).toUpperCase() + username.slice(1)}`,
+        id: user.id,
+        username: user.username,
+        name: user.name,
         role: 'SCHOOL_USER',
-        schoolUserRole: resolvedRole,
+        schoolUserRole: user.role,
         schoolId: school.id,
         schoolName: school.schoolName
       }

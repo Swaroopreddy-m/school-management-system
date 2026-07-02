@@ -927,7 +927,7 @@ const DashboardPortal = {
 
       <!-- School Creator Modal -->
       <div class="modal-overlay" id="school-modal">
-        <div class="modal-box" style="max-width: 580px;">
+        <div class="modal-box" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
           <div class="modal-header">
             <h3>Register New School Tenant</h3>
           </div>
@@ -974,9 +974,146 @@ const DashboardPortal = {
                 <option value="Asia/Kolkata">Asia/Kolkata</option>
               </select>
             </div>
+
+            <!-- Default School Administrator Details -->
+            <div style="border-top: 1px solid var(--border); margin-top: 1.5rem; padding-top: 1rem;">
+              <h4 style="margin-bottom: 0.75rem; font-size: 13px; color: var(--accent); font-weight:600;">School Administrator Credentials</h4>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label>Admin Full Name *</label>
+                  <input type="text" class="input-control" id="modal-school-admin-name" required placeholder="e.g. Sarah Jenkins">
+                </div>
+                <div class="form-group">
+                  <label>Admin Username *</label>
+                  <input type="text" class="input-control" id="modal-school-admin-username" required placeholder="sarah_admin">
+                </div>
+              </div>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label>Admin Email *</label>
+                  <input type="email" class="input-control" id="modal-school-admin-email" required placeholder="admin@oakridge.edu">
+                </div>
+                <div class="form-group">
+                  <label>Admin Password *</label>
+                  <input type="password" class="input-control" id="modal-school-admin-password" required placeholder="••••••••">
+                </div>
+              </div>
+            </div>
+
+            <!-- Subscription & Modules -->
+            <div style="border-top: 1px solid var(--border); margin-top: 1.25rem; padding-top: 1rem;">
+              <h4 style="margin-bottom: 0.75rem; font-size: 13px; color: var(--accent); font-weight:600;">Plan & Module Features</h4>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label>Subscription Plan Tier *</label>
+                  <select class="input-control" id="modal-school-tier">
+                    <option value="BASIC">Basic Tier ($49/mo)</option>
+                    <option value="GROWTH">Growth Tier ($129/mo)</option>
+                    <option value="ENTERPRISE">Enterprise Premium ($349/mo)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Enabled SaaS Modules</label>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-top: 6px;">
+                    <label><input type="checkbox" id="feat-attendance" checked> Attendance</label>
+                    <label><input type="checkbox" id="feat-fees" checked> Fees Gateway</label>
+                    <label><input type="checkbox" id="feat-exams" checked> Exams</label>
+                    <label><input type="checkbox" id="feat-library" checked> Library</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="modal-actions">
               <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleSchoolModal(false)">Cancel</button>
               <button type="submit" class="btn btn-primary">Register School</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- School Config Edit Modal -->
+      <div class="modal-overlay" id="school-config-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Configure School Settings</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleSaveSchoolConfig(event)">
+            <input type="hidden" id="modal-config-school-id">
+            <div class="form-group">
+              <label>Subscription Plan Tier *</label>
+              <select class="input-control" id="modal-config-school-tier">
+                <option value="BASIC">Basic Tier ($49/mo)</option>
+                <option value="GROWTH">Growth Tier ($129/mo)</option>
+                <option value="ENTERPRISE">Enterprise Premium ($349/mo)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Modules Access</label>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top:8px;">
+                <label><input type="checkbox" id="config-feat-attendance"> Attendance</label>
+                <label><input type="checkbox" id="config-feat-fees"> Fees Gateway</label>
+                <label><input type="checkbox" id="config-feat-exams"> Exams</label>
+                <label><input type="checkbox" id="config-feat-library"> Library</label>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleSchoolConfigModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- School User Creator Modal -->
+      <div class="modal-overlay" id="school-user-modal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Add School Employee / User</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleCreateSchoolUser(event)">
+            <div class="form-group">
+              <label>Select School *</label>
+              <select class="input-control" id="modal-user-school-id" required>
+                <!-- populated dynamically -->
+              </select>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Full Name *</label>
+                <input type="text" class="input-control" id="modal-user-name" required placeholder="e.g. John Miller">
+              </div>
+              <div class="form-group">
+                <label>User Role *</label>
+                <select class="input-control" id="modal-user-role" required>
+                  <option value="PRINCIPAL">Principal</option>
+                  <option value="VICE_PRINCIPAL">Vice Principal</option>
+                  <option value="TEACHER">Teacher</option>
+                  <option value="STUDENT">Student</option>
+                  <option value="PARENT">Parent</option>
+                  <option value="ACCOUNTANT">Accountant</option>
+                  <option value="LIBRARIAN">Librarian</option>
+                  <option value="RECEPTIONIST">Receptionist</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Email Address *</label>
+                <input type="email" class="input-control" id="modal-user-email" required placeholder="john@school.edu">
+              </div>
+              <div class="form-group">
+                <label>Username *</label>
+                <input type="text" class="input-control" id="modal-user-username" required placeholder="john_m">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Password *</label>
+              <input type="password" class="input-control" id="modal-user-password" required placeholder="••••••••">
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleSchoolUserModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Create User</button>
             </div>
           </form>
         </div>
@@ -1040,8 +1177,8 @@ const DashboardPortal = {
               <tr>
                 <td><strong>${school.schoolName}</strong></td>
                 <td><code>${school.schoolCode}</code></td>
-                <td>${school.email}</td>
-                <td>${school.phone}</td>
+                <td><span class="btn-status status-active" style="padding: 2px 8px;">${school.subscriptionTier}</span></td>
+                <td><small style="color:var(--text-secondary);">${school.features}</small></td>
                 <td>${school.city}, ${school.country}</td>
                 <td>
                   <span class="btn-status ${isActive ? 'status-active' : 'status-inactive'}">
@@ -1049,9 +1186,14 @@ const DashboardPortal = {
                   </span>
                 </td>
                 <td>
-                  <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="DashboardPortal.toggleAdminSchoolStatus('${school.id}', '${school.status}')">
-                    ${isActive ? 'Deactivate' : 'Activate'}
-                  </button>
+                  <div class="flex gap-1">
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.openSchoolConfigModal('${school.id}')">
+                      Config
+                    </button>
+                    <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.toggleAdminSchoolStatus('${school.id}', '${school.status}')">
+                      ${isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             `;
@@ -1074,8 +1216,8 @@ const DashboardPortal = {
                 <tr>
                   <th>School Name</th>
                   <th>School Code</th>
-                  <th>Email</th>
-                  <th>Phone</th>
+                  <th>Tier</th>
+                  <th>Enabled Modules</th>
                   <th>Location</th>
                   <th>Status</th>
                   <th>Action</th>
@@ -1090,36 +1232,60 @@ const DashboardPortal = {
         break;
 
       case 'users':
+        const users = await App.apiCall('/api/admin/users');
+        
+        // Also fetch schools list for dropdown prefill
+        const schoolsList = await App.apiCall('/api/admin/schools');
+        this.schools = schoolsList;
+
+        let userRows = '';
+        if (users && users.length > 0) {
+          users.forEach(user => {
+            userRows += `
+              <tr>
+                <td><strong>${user.name}</strong></td>
+                <td>@${user.username}</td>
+                <td>${user.school ? `${user.school.schoolName} (<code>${user.school.schoolCode}</code>)` : 'Unknown'}</td>
+                <td><span class="btn-status status-active" style="text-transform: capitalize; padding: 2px 6px;">${user.role.toLowerCase().replace('_', ' ')}</span></td>
+                <td>
+                  <span class="btn-status ${user.active ? 'status-active' : 'status-inactive'}">
+                    ${user.active ? 'ACTIVE' : 'INACTIVE'}
+                  </span>
+                </td>
+                <td>
+                  <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="DashboardPortal.toggleSchoolUserStatus('${user.id}', ${user.active})">
+                    ${user.active ? 'Deactivate' : 'Activate'}
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+        } else {
+          userRows = `<tr><td colspan="6" class="text-center" style="color: var(--text-muted); padding: 2rem;">No school users found. Register a school to create the default admin, or add employees.</td></tr>`;
+        }
+
         body.innerHTML = `
           <div class="table-container">
             <div class="table-header-bar">
               <span class="table-header-title">SaaS Tenant Users</span>
+              <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.openSchoolUserModal()" ${!schoolsList || schoolsList.length === 0 ? 'disabled' : ''}>
+                <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+                <span>Add School User</span>
+              </button>
             </div>
             <table class="data-table">
               <thead>
                 <tr>
                   <th>Full Name</th>
                   <th>Username</th>
-                  <th>School Code</th>
+                  <th>School Tenant</th>
                   <th>Role</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td><strong>Sarah Jenkins</strong></td>
-                  <td>sarah_principal</td>
-                  <td><code>DEMO-01</code></td>
-                  <td><span class="btn-status status-active">Principal</span></td>
-                  <td>Active</td>
-                </tr>
-                <tr>
-                  <td><strong>Mark Ruffalo</strong></td>
-                  <td>mark_teacher</td>
-                  <td><code>DEMO-01</code></td>
-                  <td><span class="btn-status status-active">Teacher</span></td>
-                  <td>Active</td>
-                </tr>
+                ${userRows}
               </tbody>
             </table>
           </div>
@@ -1131,7 +1297,7 @@ const DashboardPortal = {
           <div class="maintenance-card card-glass">
             <h3>SaaS User Roles Template</h3>
             <p>Access controls are automatically provisioned. Standard roles supported:</p>
-            <ul style="margin-left: 20px; color: var(--text-secondary); display: grid; gap: 6px;">
+            <ul style="margin-left: 20px; color: var(--text-secondary); display: grid; gap: 6px; margin-top: 10px;">
               <li><strong>School Admin:</strong> Manages school records, configurations.</li>
               <li><strong>Principal / Vice Principal:</strong> Academic control, dashboard reviews.</li>
               <li><strong>Teacher:</strong> Marks student attendance, exam scores.</li>
@@ -1239,15 +1405,30 @@ const DashboardPortal = {
     const country = document.getElementById('modal-school-country').value;
     const timezone = document.getElementById('modal-school-timezone').value;
 
+    const adminName = document.getElementById('modal-school-admin-name').value;
+    const adminUsername = document.getElementById('modal-school-admin-username').value;
+    const adminEmail = document.getElementById('modal-school-admin-email').value;
+    const adminPassword = document.getElementById('modal-school-admin-password').value;
+    const subscriptionTier = document.getElementById('modal-school-tier').value;
+
+    const features = [];
+    if (document.getElementById('feat-attendance').checked) features.push('attendance');
+    if (document.getElementById('feat-fees').checked) features.push('fees');
+    if (document.getElementById('feat-exams').checked) features.push('exams');
+    if (document.getElementById('feat-library').checked) features.push('library');
+
     const res = await App.apiCall('/api/admin/schools', {
       method: 'POST',
-      body: JSON.stringify({ schoolName, schoolCode, email, phone, address, city, country, timezone })
+      body: JSON.stringify({ 
+        schoolName, schoolCode, email, phone, address, city, country, timezone,
+        adminName, adminUsername, adminEmail, adminPassword, subscriptionTier, features
+      })
     });
 
     if (res.error) {
       App.showToast(res.message, 'error');
     } else {
-      App.showToast('School tenant successfully registered!', 'success');
+      App.showToast('School tenant & administrator successfully registered!', 'success');
       this.toggleSchoolModal(false);
       await this.loadAdminTabContent();
     }
@@ -1264,6 +1445,106 @@ const DashboardPortal = {
       App.showToast(res.message, 'error');
     } else {
       App.showToast(`School successfully ${nextStatus === 'ACTIVE' ? 'activated' : 'deactivated'}.`, 'success');
+      await this.loadAdminTabContent();
+    }
+  },
+
+  openSchoolConfigModal(schoolId) {
+    const school = this.schools.find(s => s.id === schoolId);
+    if (!school) return;
+
+    document.getElementById('modal-config-school-id').value = school.id;
+    document.getElementById('modal-config-school-tier').value = school.subscriptionTier;
+
+    const feats = school.features.split(',');
+    document.getElementById('config-feat-attendance').checked = feats.includes('attendance');
+    document.getElementById('config-feat-fees').checked = feats.includes('fees');
+    document.getElementById('config-feat-exams').checked = feats.includes('exams');
+    document.getElementById('config-feat-library').checked = feats.includes('library');
+
+    this.toggleSchoolConfigModal(true);
+  },
+
+  toggleSchoolConfigModal(show) {
+    const modal = document.getElementById('school-config-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  async handleSaveSchoolConfig(event) {
+    event.preventDefault();
+    const schoolId = document.getElementById('modal-config-school-id').value;
+    const subscriptionTier = document.getElementById('modal-config-school-tier').value;
+
+    const features = [];
+    if (document.getElementById('config-feat-attendance').checked) features.push('attendance');
+    if (document.getElementById('config-feat-fees').checked) features.push('fees');
+    if (document.getElementById('config-feat-exams').checked) features.push('exams');
+    if (document.getElementById('config-feat-library').checked) features.push('library');
+
+    const res = await App.apiCall(`/api/admin/schools/${schoolId}/config`, {
+      method: 'PUT',
+      body: JSON.stringify({ subscriptionTier, features })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('School subscription and modules configured!', 'success');
+      this.toggleSchoolConfigModal(false);
+      await this.loadAdminTabContent();
+    }
+  },
+
+  openSchoolUserModal() {
+    const select = document.getElementById('modal-user-school-id');
+    if (!select) return;
+
+    select.innerHTML = this.schools.map(s => `<option value="${s.id}">${s.schoolName} (${s.schoolCode})</option>`).join('');
+    this.toggleSchoolUserModal(true);
+  },
+
+  toggleSchoolUserModal(show) {
+    const modal = document.getElementById('school-user-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  async handleCreateSchoolUser(event) {
+    event.preventDefault();
+    const schoolId = document.getElementById('modal-user-school-id').value;
+    const name = document.getElementById('modal-user-name').value;
+    const role = document.getElementById('modal-user-role').value;
+    const email = document.getElementById('modal-user-email').value;
+    const username = document.getElementById('modal-user-username').value;
+    const password = document.getElementById('modal-user-password').value;
+
+    const res = await App.apiCall('/api/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({ schoolId, name, email, username, password, role })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast(`School user "${name}" registered successfully!`, 'success');
+      this.toggleSchoolUserModal(false);
+      await this.loadAdminTabContent();
+    }
+  },
+
+  async toggleSchoolUserStatus(id, currentActive) {
+    const res = await App.apiCall(`/api/admin/users/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ active: !currentActive })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast(`School user active state toggled!`, 'success');
       await this.loadAdminTabContent();
     }
   },
