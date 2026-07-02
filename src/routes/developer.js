@@ -246,32 +246,59 @@ router.get('/audit-logs', async (req, res) => {
   }
 });
 
-// 10. Database Backup Stub
+// 10. Database Backup Endpoint
 router.post('/database/backup', async (req, res) => {
   try {
-    // Return a mocked success for phase 1 validation
-    const backupFile = `backup_${Date.now()}.sql`;
+    const fs = require('fs');
+    const path = require('path');
+    const backupDir = path.join(__dirname, '../../backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    const dbPath = path.join(__dirname, '../../prisma/dev.db');
+    const backupFileName = `backup_${Date.now()}.db`;
+    const backupFilePath = path.join(backupDir, backupFileName);
+
+    if (fs.existsSync(dbPath)) {
+      fs.copyFileSync(dbPath, backupFilePath);
+    } else {
+      return res.status(404).json({ message: 'Active SQLite database file not found.' });
+    }
+
     await prisma.auditLog.create({
       data: {
         actorId: req.user.id,
         actorName: req.user.name,
         actorType: 'DEVELOPER',
         action: 'DATABASE_BACKUP',
-        details: `Database backup created: ${backupFile}`,
+        details: `Database backup created: ${backupFileName}`,
         ipAddress: req.ip
       }
     });
-    return res.json({ message: 'Database backup completed successfully.', file: backupFile });
+    return res.json({ message: 'Database backup completed successfully.', file: backupFileName });
   } catch (error) {
+    console.error('Backup error:', error);
     return res.status(500).json({ message: 'Backup execution failed.' });
   }
 });
 
-// 11. Database Restore Stub
+// 11. Database Restore Endpoint
 router.post('/database/restore', async (req, res) => {
   try {
     const { filename } = req.body;
     if (!filename) return res.status(400).json({ message: 'Filename required.' });
+
+    const fs = require('fs');
+    const path = require('path');
+    const backupFilePath = path.join(__dirname, '../../backups', filename);
+    const dbPath = path.join(__dirname, '../../prisma/dev.db');
+
+    if (!fs.existsSync(backupFilePath)) {
+      return res.status(404).json({ message: 'Backup snapshot file not found.' });
+    }
+
+    // Overwrite current active database
+    fs.copyFileSync(backupFilePath, dbPath);
 
     await prisma.auditLog.create({
       data: {
@@ -285,6 +312,7 @@ router.post('/database/restore', async (req, res) => {
     });
     return res.json({ message: `Database successfully restored from ${filename}.` });
   } catch (error) {
+    console.error('Restore error:', error);
     return res.status(500).json({ message: 'Restore execution failed.' });
   }
 });
