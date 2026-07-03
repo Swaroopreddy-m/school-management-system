@@ -3,6 +3,20 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const { authenticate } = require('../middleware/auth');
+const { sendEmail } = require('../utils/mailer');
+
+// Helper to find parent's associated student user ID
+const getParentStudentId = async (req) => {
+  if (req.user.schoolUserRole !== 'PARENT') return null;
+  const profile = await prisma.studentProfile.findFirst({
+    where: {
+      parentName: {
+        contains: req.user.name
+      }
+    }
+  });
+  return profile ? profile.userId : 'non-existent-id';
+};
 
 // Require School User authentication
 router.use(authenticate(['SCHOOL_USER']));
@@ -42,7 +56,7 @@ router.get('/students', async (req, res) => {
 });
 
 // Register student user + profile
-router.post('/students', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']), async (req, res) => {
+router.post('/students', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER']), async (req, res) => {
   try {
     const { name, email, username, password, rollNumber, grade, section, parentName, parentPhone } = req.body;
 
@@ -135,7 +149,7 @@ router.get('/teachers', async (req, res) => {
 });
 
 // Register teacher user + profile
-router.post('/teachers', checkSubRole(['SCHOOL_ADMIN']), async (req, res) => {
+router.post('/teachers', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
   try {
     const { name, email, username, password, employeeId, subject, qualification } = req.body;
 
@@ -207,9 +221,12 @@ router.post('/teachers', checkSubRole(['SCHOOL_ADMIN']), async (req, res) => {
 // Get attendance logs
 router.get('/attendance', async (req, res) => {
   try {
+    const parentStudentId = await getParentStudentId(req);
     const whereClause = { schoolId: req.user.schoolId };
-    if (['STUDENT', 'PARENT'].includes(req.user.schoolUserRole)) {
+    if (req.user.schoolUserRole === 'STUDENT') {
       whereClause.studentId = req.user.id;
+    } else if (parentStudentId) {
+      whereClause.studentId = parentStudentId;
     }
     const logs = await prisma.attendance.findMany({
       where: whereClause,
@@ -273,14 +290,16 @@ router.post('/attendance', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']
 // Get all exams
 router.get('/exams', async (req, res) => {
   try {
+    const parentStudentId = await getParentStudentId(req);
     const whereClause = { schoolId: req.user.schoolId };
     let exams;
-    if (req.user.schoolUserRole === 'STUDENT') {
+    if (req.user.schoolUserRole === 'STUDENT' || parentStudentId) {
+      const targetStudentId = parentStudentId || req.user.id;
       exams = await prisma.exam.findMany({
         where: whereClause,
         include: {
           results: {
-            where: { studentId: req.user.id }
+            where: { studentId: targetStudentId }
           }
         },
         orderBy: { examDate: 'desc' }
@@ -378,6 +397,27 @@ router.post('/exams/:examId/results', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL',
       }
     });
 
+    // Trigger exam grade notification email
+    const studentUser = await prisma.schoolUser.findUnique({ where: { id: studentId } });
+    const examObj = await prisma.exam.findUnique({ where: { id: examId } });
+    if (studentUser && examObj) {
+      await sendEmail({
+        to: studentUser.email,
+        subject: `Exam Grade Published - ${examObj.examName}`,
+        html: `
+          <h3>Academic Grade Alert</h3>
+          <p>Dear ${studentUser.name},</p>
+          <p>Your grade for the exam <strong>${examObj.examName}</strong> (${examObj.subject}) has been published:</p>
+          <ul>
+            <li><strong>Marks Obtained:</strong> ${marksObtained} / ${examObj.maxMarks}</li>
+            <li><strong>Grade:</strong> ${grade || 'N/A'}</li>
+            <li><strong>Feedback:</strong> ${remarks || 'None'}</li>
+          </ul>
+          <p>Please log in to your portal to view details.</p>
+        `
+      }).catch(err => console.error('Error emailing grade alert:', err));
+    }
+
     return res.json(score);
   } catch (error) {
     console.error('Error posting exam result:', error);
@@ -392,9 +432,12 @@ router.post('/exams/:examId/results', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL',
 // Get fee invoices
 router.get('/fees', async (req, res) => {
   try {
+    const parentStudentId = await getParentStudentId(req);
     const whereClause = { schoolId: req.user.schoolId };
     if (req.user.schoolUserRole === 'STUDENT') {
       whereClause.studentId = req.user.id;
+    } else if (parentStudentId) {
+      whereClause.studentId = parentStudentId;
     }
     const invoices = await prisma.feeInvoice.findMany({
       where: whereClause,
@@ -439,6 +482,26 @@ router.post('/fees', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT']), async (req, r
       }
     });
 
+    // Trigger invoice email notification
+    const studentUser = await prisma.schoolUser.findUnique({ where: { id: studentId } });
+    if (studentUser) {
+      await sendEmail({
+        to: studentUser.email,
+        subject: `Billing Invoice Issued - #${invoice.id.substring(0, 8)}`,
+        html: `
+          <h3>New Invoice Generated</h3>
+          <p>Dear ${studentUser.name},</p>
+          <p>A new invoice has been generated for your account:</p>
+          <ul>
+            <li><strong>Invoice ID:</strong> #${invoice.id.substring(0, 8)}</li>
+            <li><strong>Amount Due:</strong> $${invoice.amount.toFixed(2)}</li>
+            <li><strong>Due Date:</strong> ${invoice.dueDate}</li>
+          </ul>
+          <p>Please log in to pay online or visit the billing desk.</p>
+        `
+      }).catch(err => console.error('Error emailing invoice alert:', err));
+    }
+
     return res.status(201).json(invoice);
   } catch (error) {
     return res.status(500).json({ message: 'Error generating invoice.' });
@@ -446,7 +509,7 @@ router.post('/fees', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT']), async (req, r
 });
 
 // Record fee payment
-router.put('/fees/:id/pay', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT', 'STUDENT']), async (req, res) => {
+router.put('/fees/:id/pay', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT', 'STUDENT', 'PARENT']), async (req, res) => {
   try {
     const { id } = req.params;
     const { paymentMethod } = req.body;
@@ -459,9 +522,13 @@ router.put('/fees/:id/pay', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT', 'STUDENT
       return res.status(404).json({ message: 'Invoice not found or access denied.' });
     }
 
-    // Security: Students can only pay their own invoices
+    const parentStudentId = await getParentStudentId(req);
+
+    // Security: Students and Parents can only pay their own/child's invoices
     if (req.user.schoolUserRole === 'STUDENT' && invoice.studentId !== req.user.id) {
       return res.status(403).json({ message: 'Access denied: You can only pay your own invoices.' });
+    } else if (parentStudentId && invoice.studentId !== parentStudentId) {
+      return res.status(403).json({ message: 'Access denied: You can only pay your child\'s invoices.' });
     }
 
     const updated = await prisma.feeInvoice.update({
@@ -477,6 +544,87 @@ router.put('/fees/:id/pay', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT', 'STUDENT
   } catch (error) {
     console.error('Error processing payment:', error);
     return res.status(500).json({ message: 'Error processing fee payment.' });
+  }
+});
+
+// Email fee payment receipt
+router.post('/fees/:id/receipt/email', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT', 'STUDENT', 'PARENT']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const invoice = await prisma.feeInvoice.findFirst({
+      where: { id, schoolId: req.user.schoolId },
+      include: {
+        student: {
+          select: { name: true, email: true }
+        }
+      }
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found or access denied.' });
+    }
+
+    if (invoice.status !== 'PAID') {
+      return res.status(400).json({ message: 'Receipt is only available for paid invoices.' });
+    }
+
+    const parentStudentId = await getParentStudentId(req);
+
+    // Security: Students and Parents can only email their own/child's receipts
+    if (req.user.schoolUserRole === 'STUDENT' && invoice.studentId !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied: You can only email your own receipts.' });
+    } else if (parentStudentId && invoice.studentId !== parentStudentId) {
+      return res.status(403).json({ message: 'Access denied: You can only email your child\'s receipts.' });
+    }
+
+    const school = await prisma.school.findUnique({
+      where: { id: req.user.schoolId }
+    });
+
+    const receiptHtml = `
+      <h3>Receipt of Payment</h3>
+      <p>Dear ${invoice.student.name},</p>
+      <p>Thank you for your payment. Below is your structured digital receipt:</p>
+      <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%; max-width: 500px; font-family: sans-serif;">
+        <tr style="background: #f4f4f4;">
+          <td><strong>Invoice ID</strong></td>
+          <td>#${invoice.id.substring(0, 8)}</td>
+        </tr>
+        <tr>
+          <td><strong>School</strong></td>
+          <td>${school ? school.schoolName : 'Unknown School'}</td>
+        </tr>
+        <tr>
+          <td><strong>Amount Paid</strong></td>
+          <td>$${invoice.amount.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td><strong>Payment Date</strong></td>
+          <td>${invoice.paymentDate}</td>
+        </tr>
+        <tr>
+          <td><strong>Payment Method</strong></td>
+          <td>${invoice.paymentMethod}</td>
+        </tr>
+        <tr style="background: #e6ffe6; color: green; font-weight: bold;">
+          <td><strong>Status</strong></td>
+          <td>PAID</td>
+        </tr>
+      </table>
+      <p>Warm regards,<br/>Administration Team</p>
+    `;
+
+    await sendEmail({
+      to: invoice.student.email,
+      subject: `Receipt of Payment - Invoice #${invoice.id.substring(0, 8)}`,
+      html: receiptHtml
+    });
+
+    return res.json({ message: 'Receipt emailed successfully.' });
+  } catch (error) {
+    console.error('Error emailing receipt:', error);
+    return res.status(500).json({ message: 'Error emailing receipt.' });
   }
 });
 
@@ -518,6 +666,29 @@ router.post('/books', checkSubRole(['SCHOOL_ADMIN', 'LIBRARIAN']), async (req, r
         available: qty
       }
     });
+
+    // Alert all students in the school about the new library book
+    const students = await prisma.schoolUser.findMany({
+      where: { schoolId: req.user.schoolId, role: 'STUDENT', active: true }
+    });
+    for (const stud of students) {
+      sendEmail({
+        to: stud.email,
+        subject: `New Library Book Alert - ${title}`,
+        html: `
+          <h3>New Arrival in School Library!</h3>
+          <p>Dear ${stud.name},</p>
+          <p>A new book has been catalogued in the library and is available for checkout:</p>
+          <ul>
+            <li><strong>Title:</strong> ${title}</li>
+            <li><strong>Author:</strong> ${author}</li>
+            <li><strong>ISBN:</strong> ${isbn || 'N/A'}</li>
+            <li><strong>Availability:</strong> ${qty} copies</li>
+          </ul>
+          <p>Happy reading!</p>
+        `
+      }).catch(err => console.error('Error alerting student about book:', err));
+    }
 
     return res.status(201).json(book);
   } catch (error) {
@@ -638,6 +809,123 @@ router.put('/books/issue/:id/return', checkSubRole(['SCHOOL_ADMIN', 'LIBRARIAN']
   } catch (error) {
     console.error('Error returning book:', error);
     return res.status(500).json({ message: 'Error returning book.' });
+  }
+});
+
+// ==========================================
+// 7. VISITOR LOGS MODULE
+// ==========================================
+
+// Get visitor logs
+router.get('/visitors', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
+  try {
+    const logs = await prisma.visitorLog.findMany({
+      where: { schoolId: req.user.schoolId },
+      orderBy: { entryTime: 'desc' }
+    });
+    return res.json(logs);
+  } catch (error) {
+    console.error('Error fetching visitor logs:', error);
+    return res.status(500).json({ message: 'Error retrieving logs.' });
+  }
+});
+
+// Check in visitor
+router.post('/visitors', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST']), async (req, res) => {
+  try {
+    const { name, phone, purpose } = req.body;
+    if (!name || !phone || !purpose) {
+      return res.status(400).json({ message: 'Name, phone, and purpose are required.' });
+    }
+
+    const log = await prisma.visitorLog.create({
+      data: {
+        schoolId: req.user.schoolId,
+        name,
+        phone,
+        purpose,
+        status: 'CHECKED_IN'
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user.id,
+        actorName: req.user.name,
+        actorType: 'SCHOOL_USER',
+        action: 'VISITOR_CHECKED_IN',
+        details: `Visitor "${name}" checked in. Purpose: "${purpose}".`,
+        ipAddress: req.ip
+      }
+    });
+
+    return res.status(201).json(log);
+  } catch (error) {
+    console.error('Error creating visitor log:', error);
+    return res.status(500).json({ message: 'Error recording check-in.' });
+  }
+});
+
+// Check out visitor
+router.put('/visitors/:id/checkout', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const log = await prisma.visitorLog.findFirst({
+      where: { id, schoolId: req.user.schoolId }
+    });
+
+    if (!log) {
+      return res.status(404).json({ message: 'Visitor record not found.' });
+    }
+
+    const updated = await prisma.visitorLog.update({
+      where: { id },
+      data: {
+        status: 'CHECKED_OUT',
+        exitTime: new Date()
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user.id,
+        actorName: req.user.name,
+        actorType: 'SCHOOL_USER',
+        action: 'VISITOR_CHECKED_OUT',
+        details: `Visitor "${log.name}" checked out.`,
+        ipAddress: req.ip
+      }
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    console.error('Error checking out visitor:', error);
+    return res.status(500).json({ message: 'Error recording check-out.' });
+  }
+});
+
+// Get school audit logs
+router.get('/audit-logs', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
+  try {
+    const users = await prisma.schoolUser.findMany({
+      where: { schoolId: req.user.schoolId },
+      select: { id: true }
+    });
+    const userIds = users.map(u => u.id);
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        actorId: { in: userIds },
+        actorType: 'SCHOOL_USER'
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.json(logs);
+  } catch (error) {
+    console.error('Error fetching school audit logs:', error);
+    return res.status(500).json({ message: 'Error retrieving logs.' });
   }
 });
 

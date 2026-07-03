@@ -8,6 +8,22 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Normalize loopback IP from ::1 to 127.0.0.1 for audit logs consistency
+app.use((req, res, next) => {
+  let ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+  if (ip === '::1') {
+    ip = '127.0.0.1';
+  } else if (ip.startsWith('::ffff:')) {
+    ip = ip.substring(7);
+  }
+  Object.defineProperty(req, 'ip', {
+    value: ip,
+    writable: true,
+    configurable: true
+  });
+  next();
+});
+
 // Enable CORS and body parser
 app.use(cors());
 app.use(express.json());

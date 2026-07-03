@@ -20,13 +20,13 @@ const SetupWizard = {
     superAdminConfirmPassword: '',
     superAdminPhone: '',
     superAdminCountry: '',
-    superAdminTimezone: 'UTC',
+    superAdminTimezone: 'IST',
     // Step 3
     platformName: '',
     theme: 'dark',
     language: 'en',
     currency: 'USD',
-    timezone: 'UTC',
+    timezone: 'IST',
     smtpHost: '',
     smtpPort: ''
   },
@@ -178,6 +178,7 @@ const SetupWizard = {
                   <option value="Europe/London" ${this.formData.superAdminTimezone === 'Europe/London' ? 'selected' : ''}>London (GMT/BST)</option>
                   <option value="Asia/Kolkata" ${this.formData.superAdminTimezone === 'Asia/Kolkata' ? 'selected' : ''}>India Standard Time (IST)</option>
                   <option value="Asia/Tokyo" ${this.formData.superAdminTimezone === 'Asia/Tokyo' ? 'selected' : ''}>Japan Standard Time (JST)</option>
+                  <option value="IST" ${this.formData.superAdminTimezone === 'IST' ? 'selected' : ''}>IST (Indian Standard Time)</option>
                 </select>
               </div>
             </div>

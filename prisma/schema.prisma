@@ -67,6 +67,7 @@ model School {
   creator          SuperAdmin   @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   createdAt        DateTime     @default(now())
   users            SchoolUser[]
+  visitorLogs      VisitorLog[]
 }
 
 model SchoolUser {
@@ -196,4 +197,16 @@ model AuditLog {
   details   String
   ipAddress String?
   createdAt DateTime @default(now())
+}
+
+model VisitorLog {
+  id        String    @id @default(uuid())
+  schoolId  String
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  purpose   String
+  entryTime DateTime  @default(now())
+  exitTime  DateTime?
+  status    String    // CHECKED_IN, CHECKED_OUT
 }

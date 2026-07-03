@@ -466,7 +466,7 @@ const DashboardPortal = {
                   <strong>SMS / Email Alerts</strong>
                   <div style="font-size: 11px; color: var(--text-muted);">Custom broadcasts to parents and students.</div>
                 </div>
-                <span class="btn-status status-inactive">DISABLED (MAINTENANCE)</span>
+                <span class="btn-status status-active">ENABLED</span>
               </div>
             </div>
           </div>
@@ -620,6 +620,7 @@ const DashboardPortal = {
                     <option value="America/New_York" ${settings.timezone === 'America/New_York' ? 'selected' : ''}>America/New_York</option>
                     <option value="Europe/London" ${settings.timezone === 'Europe/London' ? 'selected' : ''}>Europe/London</option>
                     <option value="Asia/Kolkata" ${settings.timezone === 'Asia/Kolkata' ? 'selected' : ''}>Asia/Kolkata</option>
+                    <option value="IST" ${settings.timezone === 'IST' ? 'selected' : ''}>IST (Indian Standard Time)</option>
                   </select>
                 </div>
               </div>
@@ -1565,13 +1566,14 @@ const DashboardPortal = {
     // DYNAMIC MENUS BASED ON PERMISSIONS
     const roleMenus = {
       SCHOOL_ADMIN: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Audit Logs'],
-      PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams'],
+      PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+      VICE_PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
       TEACHER: ['Dashboard', 'Students', 'Attendance', 'Exams'],
       STUDENT: ['Dashboard', 'Exams', 'Fees', 'Library'],
       PARENT: ['Dashboard', 'Fees', 'Exams'],
       ACCOUNTANT: ['Dashboard', 'Fees'],
       LIBRARIAN: ['Dashboard', 'Library'],
-      RECEPTIONIST: ['Dashboard']
+      RECEPTIONIST: ['Dashboard', 'Visitors']
     };
 
     const menus = roleMenus[role] || ['Dashboard'];
@@ -2057,7 +2059,7 @@ const DashboardPortal = {
           <div class="table-container">
             <div class="table-header-bar">
               <span class="table-header-title">Registered Students</span>
-              <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleStudentModal(true)" ${!['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'].includes(userRole) ? 'disabled' : ''}>
+              <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleStudentModal(true)" ${!['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER'].includes(userRole) ? 'disabled' : ''}>
                 <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
                 <span>Add Student</span>
               </button>
@@ -2109,7 +2111,7 @@ const DashboardPortal = {
           <div class="table-container">
             <div class="table-header-bar">
               <span class="table-header-title">Faculty Members</span>
-              <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleTeacherModal(true)" ${userRole !== 'SCHOOL_ADMIN' ? 'disabled' : ''}>
+              <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleTeacherModal(true)" ${!['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL'].includes(userRole) ? 'disabled' : ''}>
                 <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
                 <span>Add Teacher</span>
               </button>
@@ -2265,11 +2267,16 @@ const DashboardPortal = {
         if (Array.isArray(invoices) && invoices.length > 0) {
           invoices.forEach(inv => {
             const isPaid = inv.status === 'PAID';
-            if (userRole === 'STUDENT') {
+            if (['STUDENT', 'PARENT'].includes(userRole)) {
               const actionBtn = isPaid ? `
-                <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.downloadReceipt('${inv.id}', '${user.name}', ${inv.amount}, '${inv.paymentDate}')">
-                  Download Receipt
-                </button>
+                <div style="display: flex; gap: 4px;">
+                  <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.downloadReceipt('${inv.id}', '${user.name}', ${inv.amount}, '${inv.paymentDate}')">
+                    Download
+                  </button>
+                  <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.emailReceipt('${inv.id}')">
+                    Email Receipt
+                  </button>
+                </div>
               ` : `
                 <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.openPayOnlineModal('${inv.id}', ${inv.amount})">
                   Pay Online
@@ -2289,6 +2296,16 @@ const DashboardPortal = {
                 </tr>
               `;
             } else {
+              const staffAction = isPaid ? `
+                <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.emailReceipt('${inv.id}')">
+                  Email Receipt
+                </button>
+              ` : `
+                <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.payInvoice('${inv.id}')">
+                  Record Payment
+                </button>
+              `;
+
               feeRows += `
                 <tr>
                   <td><code>#${inv.id.substring(0, 8)}</code></td>
@@ -2299,17 +2316,13 @@ const DashboardPortal = {
                     <span class="btn-status ${isPaid ? 'status-active' : 'status-inactive'}">${inv.status}</span>
                   </td>
                   <td>${inv.paymentDate || 'N/A'} ${inv.paymentMethod ? `(${inv.paymentMethod})` : ''}</td>
-                  <td>
-                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.payInvoice('${inv.id}')" ${isPaid ? 'disabled' : ''}>
-                      Record Payment
-                    </button>
-                  </td>
+                  <td>${staffAction}</td>
                 </tr>
               `;
             }
           });
         } else {
-          feeRows = `<tr><td colspan="${userRole === 'STUDENT' ? 6 : 7}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No fee invoices issued.</td></tr>`;
+          feeRows = `<tr><td colspan="${['STUDENT', 'PARENT'].includes(userRole) ? 6 : 7}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No fee invoices issued.</td></tr>`;
         }
 
         const feeHeaderBtn = ['SCHOOL_ADMIN', 'ACCOUNTANT'].includes(userRole) ? `
@@ -2319,7 +2332,7 @@ const DashboardPortal = {
           </button>
         ` : '';
 
-        const feeTableHeader = userRole === 'STUDENT' ? `
+        const feeTableHeader = ['STUDENT', 'PARENT'].includes(userRole) ? `
           <tr>
             <th>Invoice ID</th>
             <th>Amount</th>
@@ -2364,7 +2377,7 @@ const DashboardPortal = {
 
         if (Array.isArray(exams) && exams.length > 0) {
           exams.forEach(e => {
-            if (userRole === 'STUDENT') {
+            if (['STUDENT', 'PARENT'].includes(userRole)) {
               const myResult = (e.results && e.results[0]) || {};
               const scoreText = myResult.marksObtained !== undefined ? `${myResult.marksObtained} / ${e.maxMarks}` : 'N/A';
               examRows += `
@@ -2394,7 +2407,7 @@ const DashboardPortal = {
             }
           });
         } else {
-          examRows = `<tr><td colspan="${userRole === 'STUDENT' ? 6 : 5}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No exams scheduled.</td></tr>`;
+          examRows = `<tr><td colspan="${['STUDENT', 'PARENT'].includes(userRole) ? 6 : 5}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No exams scheduled.</td></tr>`;
         }
 
         const examHeaderBtn = ['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'].includes(userRole) ? `
@@ -2404,12 +2417,12 @@ const DashboardPortal = {
           </button>
         ` : '';
 
-        const examTableHeader = userRole === 'STUDENT' ? `
+        const examTableHeader = ['STUDENT', 'PARENT'].includes(userRole) ? `
           <tr>
             <th>Exam Title</th>
             <th>Subject</th>
             <th>Exam Date</th>
-            <th>My Score</th>
+            <th>Score</th>
             <th>Grade</th>
             <th>Remarks</th>
           </tr>
@@ -2445,19 +2458,12 @@ const DashboardPortal = {
         const books = await App.apiCall('/api/school/books');
         const checkouts = await App.apiCall('/api/school/books/issues');
 
+        const canManageLibrary = ['SCHOOL_ADMIN', 'LIBRARIAN'].includes(userRole);
+
         let bookRows = '';
         if (Array.isArray(books) && books.length > 0) {
           books.forEach(b => {
-            if (userRole === 'STUDENT') {
-              bookRows += `
-                <tr>
-                  <td><strong>${b.title}</strong></td>
-                  <td>${b.author}</td>
-                  <td>${b.isbn || 'N/A'}</td>
-                  <td>${b.available} / ${b.quantity} copies available</td>
-                </tr>
-              `;
-            } else {
+            if (canManageLibrary) {
               bookRows += `
                 <tr>
                   <td><strong>${b.title}</strong></td>
@@ -2471,10 +2477,19 @@ const DashboardPortal = {
                   </td>
                 </tr>
               `;
+            } else {
+              bookRows += `
+                <tr>
+                  <td><strong>${b.title}</strong></td>
+                  <td>${b.author}</td>
+                  <td>${b.isbn || 'N/A'}</td>
+                  <td>${b.available} / ${b.quantity} copies available</td>
+                </tr>
+              `;
             }
           });
         } else {
-          bookRows = `<tr><td colspan="${userRole === 'STUDENT' ? 4 : 5}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No books catalogued in the library.</td></tr>`;
+          bookRows = `<tr><td colspan="${canManageLibrary ? 5 : 4}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No books catalogued in the library.</td></tr>`;
         }
 
         let checkoutRows = '';
@@ -2492,7 +2507,7 @@ const DashboardPortal = {
                   <td>${c.returnDate || 'N/A'}</td>
                 </tr>
               `;
-            } else {
+            } else if (canManageLibrary) {
               checkoutRows += `
                 <tr>
                   <td><strong>${c.book ? c.book.title : 'Unknown'}</strong></td>
@@ -2509,25 +2524,41 @@ const DashboardPortal = {
                   </td>
                 </tr>
               `;
+            } else {
+              checkoutRows += `
+                <tr>
+                  <td><strong>${c.book ? c.book.title : 'Unknown'}</strong></td>
+                  <td>${c.student ? c.student.name : 'Unknown'}</td>
+                  <td>${c.issueDate}</td>
+                  <td>
+                    <span class="btn-status ${isReturned ? 'status-active' : 'status-inactive'}">${c.status}</span>
+                  </td>
+                  <td>${c.returnDate || 'N/A'}</td>
+                </tr>
+              `;
             }
           });
         } else {
-          checkoutRows = `<tr><td colspan="${userRole === 'STUDENT' ? 4 : 6}" class="text-center" style="color: var(--text-muted); padding: 1.5rem;">No active checkout logs.</td></tr>`;
+          let colsCount = 4;
+          if (canManageLibrary) colsCount = 6;
+          else if (userRole !== 'STUDENT') colsCount = 5;
+          checkoutRows = `<tr><td colspan="${colsCount}" class="text-center" style="color: var(--text-muted); padding: 1.5rem;">No active checkout logs.</td></tr>`;
         }
 
-        const libHeaderBtn = ['SCHOOL_ADMIN', 'LIBRARIAN'].includes(userRole) ? `
+        const libHeaderBtn = canManageLibrary ? `
           <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="DashboardPortal.toggleBookModal(true)">
             <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
             <span>Add Book</span>
           </button>
         ` : '';
 
-        const catalogHeader = userRole === 'STUDENT' ? `
+        const catalogHeader = canManageLibrary ? `
           <tr>
             <th>Book Title</th>
             <th>Author</th>
             <th>ISBN</th>
             <th>Availability</th>
+            <th>Action</th>
           </tr>
         ` : `
           <tr>
@@ -2535,7 +2566,6 @@ const DashboardPortal = {
             <th>Author</th>
             <th>ISBN</th>
             <th>Availability</th>
-            <th>Action</th>
           </tr>
         `;
 
@@ -2546,7 +2576,7 @@ const DashboardPortal = {
             <th>Status</th>
             <th>Return Date</th>
           </tr>
-        ` : `
+        ` : (canManageLibrary ? `
           <tr>
             <th>Book Title</th>
             <th>Borrower</th>
@@ -2555,7 +2585,15 @@ const DashboardPortal = {
             <th>Return Date</th>
             <th>Action</th>
           </tr>
-        `;
+        ` : `
+          <tr>
+            <th>Book Title</th>
+            <th>Borrower</th>
+            <th>Issue Date</th>
+            <th>Status</th>
+            <th>Return Date</th>
+          </tr>
+        `);
 
         body.innerHTML = `
           <!-- Catalog -->
@@ -2591,8 +2629,86 @@ const DashboardPortal = {
         `;
         break;
 
+      case 'Visitors':
+        const visitors = await App.apiCall('/api/school/visitors');
+        let visRows = '';
+        if (Array.isArray(visitors) && visitors.length > 0) {
+          visitors.forEach(v => {
+            const isCheckedIn = v.status === 'CHECKED_IN';
+            visRows += `
+              <tr>
+                <td><strong>${v.name}</strong></td>
+                <td><code>${v.phone}</code></td>
+                <td>${v.purpose}</td>
+                <td>${new Date(v.entryTime).toLocaleString()}</td>
+                <td>${v.exitTime ? new Date(v.exitTime).toLocaleString() : 'N/A'}</td>
+                <td>
+                  <span class="btn-status ${isCheckedIn ? 'status-inactive' : 'status-active'}">
+                    ${v.status}
+                  </span>
+                </td>
+                <td>
+                  <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.checkoutVisitor('${v.id}')" ${!isCheckedIn ? 'disabled' : ''}>
+                    Check Out
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+        } else {
+          visRows = `<tr><td colspan="7" class="text-center" style="color: var(--text-muted); padding: 2rem;">No visitor logs found.</td></tr>`;
+        }
+
+        body.innerHTML = `
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem;">
+            <!-- Check In Form -->
+            <div class="card-glass" style="padding: 1.5rem; max-height: 380px;">
+              <h3 style="margin-bottom: 1.25rem;">Check In Visitor</h3>
+              <form onsubmit="DashboardPortal.handleVisitorCheckin(event)">
+                <div class="form-group">
+                  <label>Visitor Full Name *</label>
+                  <input type="text" class="input-control" id="visitor-name" required placeholder="e.g. John Doe">
+                </div>
+                <div class="form-group">
+                  <label>Phone Number *</label>
+                  <input type="text" class="input-control" id="visitor-phone" required placeholder="e.g. +1 555-0199">
+                </div>
+                <div class="form-group">
+                  <label>Purpose of Visit *</label>
+                  <input type="text" class="input-control" id="visitor-purpose" required placeholder="e.g. Parent teacher meeting">
+                </div>
+                <button type="submit" class="btn btn-primary w-full" style="margin-top: 0.5rem;">Check In</button>
+              </form>
+            </div>
+
+            <!-- Logs list -->
+            <div class="table-container" style="margin-bottom: 0;">
+              <div class="table-header-bar">
+                <span class="table-header-title">Visitor Logs</span>
+              </div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Visitor Name</th>
+                    <th>Phone</th>
+                    <th>Purpose</th>
+                    <th>Entry Time</th>
+                    <th>Exit Time</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${visRows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        break;
+
       case 'Audit Logs':
-        const logs = await App.apiCall('/api/admin/audit-logs'); // Reuse the admin logs query or custom
+        const logs = await App.apiCall('/api/school/audit-logs');
         let rows = '';
         if (logs && logs.length > 0) {
           logs.forEach(log => {
@@ -3016,6 +3132,53 @@ Thank you for your payment!
     a.click();
     document.body.removeChild(a);
     App.showToast('Receipt downloaded successfully!', 'success');
+  },
+
+  async emailReceipt(invoiceId) {
+    App.showToast('Requesting receipt email...', 'info');
+    const res = await App.apiCall(`/api/school/fees/${invoiceId}/receipt/email`, {
+      method: 'POST'
+    });
+
+    if (res.error) {
+      App.showToast(res.message || 'Failed to email receipt.', 'error');
+    } else {
+      App.showToast('Receipt emailed successfully!', 'success');
+    }
+  },
+
+  async handleVisitorCheckin(e) {
+    e.preventDefault();
+    const name = document.getElementById('visitor-name').value;
+    const phone = document.getElementById('visitor-phone').value;
+    const purpose = document.getElementById('visitor-purpose').value;
+
+    App.showToast('Checking in visitor...', 'info');
+    const res = await App.apiCall('/api/school/visitors', {
+      method: 'POST',
+      body: { name, phone, purpose }
+    });
+
+    if (res.error) {
+      App.showToast(res.error || 'Failed to check in visitor.', 'error');
+    } else {
+      App.showToast('Visitor checked in successfully!', 'success');
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async checkoutVisitor(visitorId) {
+    App.showToast('Checking out visitor...', 'info');
+    const res = await App.apiCall(`/api/school/visitors/${visitorId}/checkout`, {
+      method: 'PUT'
+    });
+
+    if (res.error) {
+      App.showToast(res.error || 'Failed to check out visitor.', 'error');
+    } else {
+      App.showToast('Visitor checked out successfully!', 'success');
+      await this.loadSchoolTabContent();
+    }
   }
 };
 
