@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const { authenticate } = require('../middleware/auth');
+const { sendEmail } = require('../utils/mailer');
 
 router.use(authenticate(['SUPER_ADMIN']));
 
@@ -292,6 +293,25 @@ router.post('/users', async (req, res) => {
 
       return newUser;
     });
+
+    // Send School User Onboarding Confirmation Email
+    await sendEmail({
+      to: email,
+      subject: `Account Created - Welcome to ${school.schoolName}`,
+      html: `
+        <h3>Welcome to ${school.schoolName}!</h3>
+        <p>Dear ${name},</p>
+        <p>Your portal login has been registered under <strong>${school.schoolName}</strong>.</p>
+        <p>You can use the following details to log in:</p>
+        <ul>
+          <li><strong>School Code:</strong> ${school.schoolCode}</li>
+          <li><strong>Role:</strong> ${role}</li>
+          <li><strong>Username:</strong> ${username}</li>
+          <li><strong>Password:</strong> ${password}</li>
+        </ul>
+        <p>Please change your credentials upon first login.</p>
+      `
+    }).catch(err => console.error('Error sending school user onboarding email:', err));
 
     await prisma.auditLog.create({
       data: {

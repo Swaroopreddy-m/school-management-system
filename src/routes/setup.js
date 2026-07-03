@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
+const { sendEmail } = require('../utils/mailer');
 
 // Check setup status
 router.get('/status', async (req, res) => {
@@ -119,6 +120,23 @@ router.post('/complete', async (req, res) => {
 
       return { developer, superAdmin, settings };
     });
+
+    // Send Onboarding Confirmation Email to the Super Admin
+    await sendEmail({
+      to: superAdminEmail,
+      subject: `Welcome to ${platformName} - Super Admin Account Created`,
+      html: `
+        <h3>Welcome to ${platformName}!</h3>
+        <p>Dear ${superAdminName},</p>
+        <p>Your Super Admin account has been successfully initialized.</p>
+        <p>You can use the following credentials to access the platform:</p>
+        <ul>
+          <li><strong>Username:</strong> ${superAdminUsername}</li>
+          <li><strong>Temporary Password:</strong> ${superAdminPassword}</li>
+        </ul>
+        <p>Please change your password after logging in for the first time.</p>
+      `
+    }).catch(err => console.error('Error sending onboarding email:', err));
 
     return res.status(200).json({
       message: 'System initialized successfully.',
