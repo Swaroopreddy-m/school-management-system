@@ -1565,8 +1565,8 @@ const DashboardPortal = {
 
     // DYNAMIC MENUS BASED ON PERMISSIONS
     const roleMenus = {
-      SCHOOL_ADMIN: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Audit Logs'],
-      PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+      SCHOOL_ADMIN: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Audit Logs', 'Access Control'],
+      PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library', 'Access Control'],
       VICE_PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
       TEACHER: ['Dashboard', 'Students', 'Attendance', 'Exams'],
       STUDENT: ['Dashboard', 'Exams', 'Fees', 'Library'],
@@ -1575,6 +1575,13 @@ const DashboardPortal = {
       LIBRARIAN: ['Dashboard', 'Library'],
       RECEPTIONIST: ['Dashboard', 'Visitors']
     };
+
+    const perms = await App.apiCall('/api/school/permissions');
+    if (Array.isArray(perms)) {
+      perms.forEach(p => {
+        roleMenus[p.roleName] = p.menus.split(',');
+      });
+    }
 
     const menus = roleMenus[role] || ['Dashboard'];
     this.activeTab = localStorage.getItem('schoolActiveTab') || 'Dashboard';
@@ -1593,6 +1600,8 @@ const DashboardPortal = {
       else if (menu.includes('Exams')) icon = 'award';
       else if (menu.includes('Library')) icon = 'book-open';
       else if (menu.includes('Audit')) icon = 'file-text';
+      else if (menu.includes('Access Control')) icon = 'shield';
+      else if (menu.includes('Visitors')) icon = 'contact';
 
       menuHtml += `
         <div class="menu-item ${this.activeTab === menu ? 'active' : ''}" onclick="DashboardPortal.switchSchoolTab('${menu}')">
@@ -1948,6 +1957,194 @@ const DashboardPortal = {
           </form>
         </div>
       </div>
+
+      <!-- User Profile Editor Modal -->
+      <div class="modal-overlay" id="edit-user-modal">
+        <div class="modal-box" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h3>Edit User Profile</h3>
+          </div>
+          <form onsubmit="DashboardPortal.handleEditUserSubmit(event)">
+            <input type="hidden" id="edit-user-id">
+            <input type="hidden" id="edit-user-type">
+            <div class="form-group">
+              <label>Full Name *</label>
+              <input type="text" class="input-control" id="edit-user-name" required>
+            </div>
+            <div class="form-group">
+              <label>Email *</label>
+              <input type="email" class="input-control" id="edit-user-email" required>
+            </div>
+            <div class="form-group">
+              <label>Role</label>
+              <select class="input-control" id="edit-user-role">
+                <option value="TEACHER">TEACHER</option>
+                <option value="STUDENT">STUDENT</option>
+                <option value="PARENT">PARENT</option>
+                <option value="ACCOUNTANT">ACCOUNTANT</option>
+                <option value="LIBRARIAN">LIBRARIAN</option>
+                <option value="RECEPTIONIST">RECEPTIONIST</option>
+                <option value="PRINCIPAL">PRINCIPAL</option>
+                <option value="VICE_PRINCIPAL">VICE_PRINCIPAL</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select class="input-control" id="edit-user-active">
+                <option value="true">ACTIVE</option>
+                <option value="false">INACTIVE</option>
+              </select>
+            </div>
+
+            <!-- Teacher profile fields -->
+            <div id="edit-teacher-fields" style="display:none; border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem;">
+              <h4 style="margin-bottom:0.75rem; font-size:12px; color:var(--accent); font-weight:600;">Teacher Profile Details</h4>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label>Employee ID *</label>
+                  <input type="text" class="input-control" id="edit-teach-empid">
+                </div>
+                <div class="form-group">
+                  <label>Primary Subject *</label>
+                  <input type="text" class="input-control" id="edit-teach-subject">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Qualification</label>
+                <input type="text" class="input-control" id="edit-teach-qual">
+              </div>
+            </div>
+
+            <!-- Student profile fields -->
+            <div id="edit-student-fields" style="display:none; border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem;">
+              <h4 style="margin-bottom:0.75rem; font-size:12px; color:var(--accent); font-weight:600;">Student Profile Details</h4>
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label>Roll Number *</label>
+                  <input type="text" class="input-control" id="edit-stud-roll">
+                </div>
+                <div class="form-group">
+                  <label>Grade Level *</label>
+                  <input type="text" class="input-control" id="edit-stud-grade">
+                </div>
+                <div class="form-group">
+                  <label>Section *</label>
+                  <input type="text" class="input-control" id="edit-stud-section">
+                </div>
+              </div>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label>Parent Name</label>
+                  <input type="text" class="input-control" id="edit-stud-parent">
+                </div>
+                <div class="form-group">
+                  <label>Parent Phone</label>
+                  <input type="text" class="input-control" id="edit-stud-parent-phone">
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleEditUserModal(false)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Specific User Audit Logs Modal -->
+      <div class="modal-overlay" id="user-logs-modal">
+        <div class="modal-box" style="max-width: 750px; max-height: 90vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h3 id="user-logs-title">User Audit History Logs</h3>
+          </div>
+          <div class="table-container" style="margin-top: 1rem;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Action</th>
+                  <th>IP Address</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="user-logs-table-body">
+                <tr><td colspan="4" class="text-center">Loading logs...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleUserLogsModal(false)">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Student Log Report Modal -->
+      <div class="modal-overlay" id="student-report-modal">
+        <div class="modal-box" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h3 id="student-report-title">Academic & Billing History Reports</h3>
+          </div>
+          <input type="hidden" id="report-student-id">
+          
+          <div class="card-glass" style="padding: 1rem; margin-top: 1rem;">
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label>Report Type</label>
+                <select class="input-control" id="report-type" onchange="DashboardPortal.refreshReportView()">
+                  <option value="attendance">Attendance History</option>
+                  <option value="fees">Fees & Invoices</option>
+                  <option value="exams">Exam Results</option>
+                  <option value="library">Library Checkout Log</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Time Filter</label>
+                <select class="input-control" id="report-time-filter" onchange="DashboardPortal.toggleCustomDateRange()">
+                  <option value="10">Last 10 Days</option>
+                  <option value="30" selected>Last 30 Days</option>
+                  <option value="60">Last 60 Days</option>
+                  <option value="custom">Custom Date Range</option>
+                </select>
+              </div>
+              <div class="form-group" id="custom-range-wrapper" style="display:none;">
+                <label>Start / End Dates</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="date" class="input-control" id="report-start-date" style="padding:4px 8px;">
+                  <input type="date" class="input-control" id="report-end-date" style="padding:4px 8px;">
+                </div>
+              </div>
+            </div>
+            
+            <div style="margin-top: 1rem; display: flex; gap: 8px; justify-content: flex-end;">
+              <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="DashboardPortal.refreshReportView()">
+                <i data-lucide="refresh-cw" style="width:14px; height:14px; margin-right:4px;"></i> View Report
+              </button>
+              <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="DashboardPortal.downloadReport()">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Download
+              </button>
+              <button class="btn btn-primary" style="padding:6px 12px; font-size:12px;" onclick="DashboardPortal.emailReport()">
+                <i data-lucide="mail" style="width:14px; height:14px; margin-right:4px;"></i> Email Me Report
+              </button>
+            </div>
+          </div>
+
+          <div class="table-container" style="margin-top: 1rem;">
+            <table class="data-table">
+              <thead id="report-table-header">
+                <!-- Dynamic Header -->
+              </thead>
+              <tbody id="report-table-body">
+                <!-- Dynamic Data -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleStudentReportModal(false)">Close</button>
+          </div>
+        </div>
+      </div>
     `;
 
     this.loadSchoolTabContent();
@@ -2034,10 +2231,28 @@ const DashboardPortal = {
       case 'Students':
         const students = await App.apiCall('/api/school/students');
         let studRows = '';
+        const isStaffOrAdmin = ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER'].includes(userRole);
 
         if (Array.isArray(students) && students.length > 0) {
           students.forEach(s => {
             const prof = s.studentProfile || {};
+            let actionsCell = '';
+            if (isStaffOrAdmin) {
+              actionsCell = `
+                <td>
+                  <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-right: 4px;" onclick="DashboardPortal.openEditUserModal('${s.id}', 'STUDENT', '${s.name}', '${s.email}', '${s.active}', '${prof.rollNumber || ''}', '${prof.grade || ''}', '${prof.section || ''}', '${prof.parentName || ''}', '${prof.parentPhone || ''}')">
+                    Edit
+                  </button>
+                  <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-right: 4px;" onclick="DashboardPortal.openStudentReportModal('${s.id}', '${s.name}')">
+                    Reports
+                  </button>
+                  <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px;" onclick="DashboardPortal.openUserLogsModal('${s.id}', '${s.name}')">
+                    Logs
+                  </button>
+                </td>
+              `;
+            }
+
             studRows += `
               <tr>
                 <td><strong>${s.name}</strong></td>
@@ -2048,11 +2263,12 @@ const DashboardPortal = {
                 <td>
                   <span class="btn-status status-active">${s.active ? 'ACTIVE' : 'INACTIVE'}</span>
                 </td>
+                ${actionsCell}
               </tr>
             `;
           });
         } else {
-          studRows = `<tr><td colspan="6" class="text-center" style="color: var(--text-muted); padding: 2rem;">No students registered under this tenant.</td></tr>`;
+          studRows = `<tr><td colspan="${isStaffOrAdmin ? 7 : 6}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No students registered under this tenant.</td></tr>`;
         }
 
         body.innerHTML = `
@@ -2073,6 +2289,7 @@ const DashboardPortal = {
                   <th>Class (Grade & Section)</th>
                   <th>Parent Info</th>
                   <th>Status</th>
+                  ${isStaffOrAdmin ? '<th>Actions</th>' : ''}
                 </tr>
               </thead>
               <tbody>
@@ -2086,10 +2303,25 @@ const DashboardPortal = {
       case 'Teachers':
         const teachers = await App.apiCall('/api/school/teachers');
         let teachRows = '';
+        const isAdminOrPrincipal = ['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL'].includes(userRole);
 
         if (Array.isArray(teachers) && teachers.length > 0) {
           teachers.forEach(t => {
             const prof = t.teacherProfile || {};
+            let actionsCell = '';
+            if (isAdminOrPrincipal) {
+              actionsCell = `
+                <td>
+                  <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-right: 4px;" onclick="DashboardPortal.openEditUserModal('${t.id}', 'TEACHER', '${t.name}', '${t.email}', '${t.active}', '', '', '', '', '', '${prof.employeeId || ''}', '${prof.subject || ''}', '${prof.qualification || ''}')">
+                    Edit
+                  </button>
+                  <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px;" onclick="DashboardPortal.openUserLogsModal('${t.id}', '${t.name}')">
+                    Logs
+                  </button>
+                </td>
+              `;
+            }
+
             teachRows += `
               <tr>
                 <td><strong>${t.name}</strong></td>
@@ -2100,11 +2332,12 @@ const DashboardPortal = {
                 <td>
                   <span class="btn-status status-active">${t.active ? 'ACTIVE' : 'INACTIVE'}</span>
                 </td>
+                ${actionsCell}
               </tr>
             `;
           });
         } else {
-          teachRows = `<tr><td colspan="6" class="text-center" style="color: var(--text-muted); padding: 2rem;">No teachers registered under this tenant.</td></tr>`;
+          teachRows = `<tr><td colspan="${isAdminOrPrincipal ? 7 : 6}" class="text-center" style="color: var(--text-muted); padding: 2rem;">No teachers registered under this tenant.</td></tr>`;
         }
 
         body.innerHTML = `
@@ -2125,6 +2358,7 @@ const DashboardPortal = {
                   <th>Subject</th>
                   <th>Qualification</th>
                   <th>Status</th>
+                  ${isAdminOrPrincipal ? '<th>Actions</th>' : ''}
                 </tr>
               </thead>
               <tbody>
@@ -2707,6 +2941,104 @@ const DashboardPortal = {
         `;
         break;
 
+      case 'Access Control':
+        const rolesList = ['PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'STUDENT', 'PARENT', 'ACCOUNTANT', 'LIBRARIAN', 'RECEPTIONIST'];
+        const allModules = ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Visitors', 'Audit Logs', 'Access Control'];
+
+        const dbPerms = await App.apiCall('/api/school/permissions');
+        const rolePermissionsMap = {};
+
+        const defaultPerms = {
+          PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library', 'Access Control'],
+          VICE_PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+          TEACHER: ['Dashboard', 'Students', 'Attendance', 'Exams'],
+          STUDENT: ['Dashboard', 'Exams', 'Fees', 'Library'],
+          PARENT: ['Dashboard', 'Fees', 'Exams'],
+          ACCOUNTANT: ['Dashboard', 'Fees'],
+          LIBRARIAN: ['Dashboard', 'Library'],
+          RECEPTIONIST: ['Dashboard', 'Visitors']
+        };
+
+        rolesList.forEach(r => {
+          rolePermissionsMap[r] = defaultPerms[r] || ['Dashboard'];
+        });
+
+        if (Array.isArray(dbPerms)) {
+          dbPerms.forEach(p => {
+            if (!rolesList.includes(p.roleName)) {
+              rolesList.push(p.roleName);
+            }
+            rolePermissionsMap[p.roleName] = p.menus.split(',');
+          });
+        }
+
+        let roleRows = '';
+        rolesList.forEach(roleName => {
+          const currentMenus = rolePermissionsMap[roleName] || [];
+          let checkboxes = '';
+          allModules.forEach(mod => {
+            const isChecked = currentMenus.includes(mod) ? 'checked' : '';
+            checkboxes += `
+              <label style="display: inline-flex; align-items: center; margin-right: 12px; font-size: 11px; margin-bottom: 6px;">
+                <input type="checkbox" class="perm-checkbox-${roleName}" value="${mod}" ${isChecked} style="margin-right: 4px;">
+                <span>${mod}</span>
+              </label>
+            `;
+          });
+
+          roleRows += `
+            <tr id="row-role-${roleName}">
+              <td><strong style="color: var(--primary);">${roleName}</strong></td>
+              <td>
+                <div style="display: flex; flex-wrap: wrap; max-width: 500px; padding: 4px 0;">
+                  ${checkboxes}
+                </div>
+              </td>
+              <td>
+                <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="DashboardPortal.saveRolePermissions('${roleName}')">
+                  Save Mappings
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+
+        body.innerHTML = `
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem;">
+            <!-- Add Custom Role Card -->
+            <div class="card-glass" style="padding: 1.5rem; max-height: 280px;">
+              <h3 style="margin-bottom: 1.25rem;">Create Custom Role</h3>
+              <form onsubmit="DashboardPortal.handleCreateCustomRole(event)">
+                <div class="form-group">
+                  <label>Role Name *</label>
+                  <input type="text" class="input-control" id="custom-role-name" required placeholder="e.g. REGISTRAR" style="text-transform: uppercase;">
+                </div>
+                <button type="submit" class="btn btn-primary w-full" style="margin-top: 1rem;">Add Custom Role</button>
+              </form>
+            </div>
+
+            <!-- Access Control Mappings Table -->
+            <div class="table-container" style="margin-bottom: 0;">
+              <div class="table-header-bar">
+                <span class="table-header-title">Role Modules & Tabs Permissions</span>
+              </div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Role Designation</th>
+                    <th>Allowed Tabs / Modules</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${roleRows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        break;
+
       case 'Audit Logs':
         const logs = await App.apiCall('/api/school/audit-logs');
         let rows = '';
@@ -3156,7 +3488,7 @@ Thank you for your payment!
     App.showToast('Checking in visitor...', 'info');
     const res = await App.apiCall('/api/school/visitors', {
       method: 'POST',
-      body: { name, phone, purpose }
+      body: JSON.stringify({ name, phone, purpose })
     });
 
     if (res.error) {
@@ -3178,6 +3510,370 @@ Thank you for your payment!
     } else {
       App.showToast('Visitor checked out successfully!', 'success');
       await this.loadSchoolTabContent();
+    }
+  },
+
+  async saveRolePermissions(roleName) {
+    const checkboxes = document.querySelectorAll(`.perm-checkbox-${roleName}`);
+    const menus = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) menus.push(cb.value);
+    });
+
+    App.showToast(`Saving mappings for ${roleName}...`, 'info');
+    const res = await App.apiCall('/api/school/permissions', {
+      method: 'POST',
+      body: JSON.stringify({ roleName, menus })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast(`Role mapping updated for ${roleName}! Reloading dashboard...`, 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  },
+
+  async handleCreateCustomRole(e) {
+    e.preventDefault();
+    const roleName = document.getElementById('custom-role-name').value.trim().toUpperCase();
+    if (!roleName) return;
+
+    App.showToast(`Creating role ${roleName}...`, 'info');
+    const res = await App.apiCall('/api/school/permissions', {
+      method: 'POST',
+      body: JSON.stringify({ roleName, menus: ['Dashboard'] })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast(`Custom role ${roleName} created successfully!`, 'success');
+      document.getElementById('custom-role-name').value = '';
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  openEditUserModal(id, type, name, email, active, rollNumber = '', grade = '', section = '', parentName = '', parentPhone = '', employeeId = '', subject = '', qualification = '') {
+    document.getElementById('edit-user-id').value = id;
+    document.getElementById('edit-user-type').value = type;
+    document.getElementById('edit-user-name').value = name;
+    document.getElementById('edit-user-email').value = email;
+    document.getElementById('edit-user-role').value = type;
+    document.getElementById('edit-user-active').value = String(active === 'true' || active === true);
+
+    const teachFields = document.getElementById('edit-teacher-fields');
+    const studFields = document.getElementById('edit-student-fields');
+
+    if (type === 'TEACHER') {
+      teachFields.style.display = 'block';
+      studFields.style.display = 'none';
+      document.getElementById('edit-teach-empid').value = employeeId;
+      document.getElementById('edit-teach-subject').value = subject;
+      document.getElementById('edit-teach-qual').value = qualification;
+    } else if (type === 'STUDENT') {
+      teachFields.style.display = 'none';
+      studFields.style.display = 'block';
+      document.getElementById('edit-stud-roll').value = rollNumber;
+      document.getElementById('edit-stud-grade').value = grade;
+      document.getElementById('edit-stud-section').value = section;
+      document.getElementById('edit-stud-parent').value = parentName;
+      document.getElementById('edit-stud-parent-phone').value = parentPhone;
+    } else {
+      teachFields.style.display = 'none';
+      studFields.style.display = 'none';
+    }
+
+    this.toggleEditUserModal(true);
+  },
+
+  toggleEditUserModal(show) {
+    const modal = document.getElementById('edit-user-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  async handleEditUserSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit-user-id').value;
+    const type = document.getElementById('edit-user-type').value;
+
+    const payload = {
+      name: document.getElementById('edit-user-name').value,
+      email: document.getElementById('edit-user-email').value,
+      role: document.getElementById('edit-user-role').value,
+      active: document.getElementById('edit-user-active').value === 'true'
+    };
+
+    if (type === 'TEACHER') {
+      payload.employeeId = document.getElementById('edit-teach-empid').value;
+      payload.subject = document.getElementById('edit-teach-subject').value;
+      payload.qualification = document.getElementById('edit-teach-qual').value;
+    } else if (type === 'STUDENT') {
+      payload.rollNumber = document.getElementById('edit-stud-roll').value;
+      payload.grade = document.getElementById('edit-stud-grade').value;
+      payload.section = document.getElementById('edit-stud-section').value;
+      payload.parentName = document.getElementById('edit-stud-parent').value;
+      payload.parentPhone = document.getElementById('edit-stud-parent-phone').value;
+    }
+
+    App.showToast('Saving user changes...', 'info');
+    const res = await App.apiCall(`/api/school/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('User profile updated successfully!', 'success');
+      this.toggleEditUserModal(false);
+      await this.loadSchoolTabContent();
+    }
+  },
+
+  async openUserLogsModal(id, name) {
+    document.getElementById('user-logs-title').textContent = `Audit Log History for ${name}`;
+    const tbody = document.getElementById('user-logs-table-body');
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center">Loading audit history...</td></tr>';
+
+    this.toggleUserLogsModal(true);
+
+    const logs = await App.apiCall(`/api/school/users/${id}/logs`);
+    if (!Array.isArray(logs) || logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center" style="color:var(--text-muted);">No recorded logs for this user.</td></tr>';
+    } else {
+      tbody.innerHTML = logs.map(log => `
+        <tr>
+          <td><small>${new Date(log.createdAt).toLocaleString()}</small></td>
+          <td><span class="btn-status status-active" style="padding: 2px 6px; font-size:10px;">${log.action}</span></td>
+          <td><code>${log.ipAddress || '127.0.0.1'}</code></td>
+          <td>${log.details}</td>
+        </tr>
+      `).join('');
+    }
+  },
+
+  toggleUserLogsModal(show) {
+    const modal = document.getElementById('user-logs-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  openStudentReportModal(studentId, name) {
+    document.getElementById('report-student-id').value = studentId;
+    document.getElementById('student-report-title').textContent = `Academic & Billing History Reports: ${name}`;
+    
+    document.getElementById('report-type').value = 'attendance';
+    document.getElementById('report-time-filter').value = '30';
+    document.getElementById('custom-range-wrapper').style.display = 'none';
+
+    this.toggleStudentReportModal(true);
+    this.refreshReportView();
+  },
+
+  toggleStudentReportModal(show) {
+    const modal = document.getElementById('student-report-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  toggleCustomDateRange() {
+    const filter = document.getElementById('report-time-filter').value;
+    const wrapper = document.getElementById('custom-range-wrapper');
+    if (filter === 'custom') {
+      wrapper.style.display = 'block';
+    } else {
+      wrapper.style.display = 'none';
+    }
+  },
+
+  async refreshReportView() {
+    const studentId = document.getElementById('report-student-id').value;
+    const type = document.getElementById('report-type').value;
+    const days = document.getElementById('report-time-filter').value;
+    const startDate = document.getElementById('report-start-date').value;
+    const endDate = document.getElementById('report-end-date').value;
+
+    const head = document.getElementById('report-table-header');
+    const body = document.getElementById('report-table-body');
+
+    body.innerHTML = '<tr><td colspan="5" class="text-center">Compiling logs...</td></tr>';
+
+    let url = `/api/school/students/${studentId}/report?type=${type}&days=${days}`;
+    if (days === 'custom' && startDate && endDate) {
+      url += `&startDate=${startDate}&endDate=${endDate}`;
+    }
+
+    const data = await App.apiCall(url);
+
+    if (type === 'attendance') {
+      head.innerHTML = `
+        <tr>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Marked By</th>
+          <th>Remarks</th>
+        </tr>
+      `;
+      if (Array.isArray(data) && data.length > 0) {
+        body.innerHTML = data.map(r => `
+          <tr>
+            <td><strong>${r.date}</strong></td>
+            <td><span class="btn-status ${r.status === 'PRESENT' ? 'status-active' : 'status-inactive'}">${r.status}</span></td>
+            <td>${r.markedBy}</td>
+            <td>${r.remarks || 'None'}</td>
+          </tr>
+        `).join('');
+      } else {
+        body.innerHTML = '<tr><td colspan="4" class="text-center" style="color:var(--text-muted); padding:1.5rem;">No attendance records found.</td></tr>';
+      }
+    } else if (type === 'fees') {
+      head.innerHTML = `
+        <tr>
+          <th>Invoice ID</th>
+          <th>Amount</th>
+          <th>Due Date</th>
+          <th>Status</th>
+          <th>Payment Date</th>
+        </tr>
+      `;
+      if (Array.isArray(data) && data.length > 0) {
+        body.innerHTML = data.map(r => `
+          <tr>
+            <td><code>#${r.id.substring(0,8)}</code></td>
+            <td><strong>$${r.amount.toFixed(2)}</strong></td>
+            <td>${r.dueDate}</td>
+            <td><span class="btn-status ${r.status === 'PAID' ? 'status-active' : 'status-inactive'}">${r.status}</span></td>
+            <td>${r.paymentDate || 'N/A'}</td>
+          </tr>
+        `).join('');
+      } else {
+        body.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-muted); padding:1.5rem;">No invoice records found.</td></tr>';
+      }
+    } else if (type === 'exams') {
+      head.innerHTML = `
+        <tr>
+          <th>Exam Name</th>
+          <th>Subject</th>
+          <th>Marks Obtained</th>
+          <th>Grade</th>
+          <th>Remarks</th>
+        </tr>
+      `;
+      if (Array.isArray(data) && data.length > 0) {
+        body.innerHTML = data.map(r => `
+          <tr>
+            <td><strong>${r.exam ? r.exam.examName : 'N/A'}</strong></td>
+            <td>${r.exam ? r.exam.subject : 'N/A'}</td>
+            <td><code>${r.marksObtained} / ${r.exam ? r.exam.maxMarks : 100}</code></td>
+            <td><span class="btn-status status-active" style="padding:2px 8px;">${r.grade || 'N/A'}</span></td>
+            <td>${r.remarks || 'None'}</td>
+          </tr>
+        `).join('');
+      } else {
+        body.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-muted); padding:1.5rem;">No exam results found.</td></tr>';
+      }
+    } else if (type === 'library') {
+      head.innerHTML = `
+        <tr>
+          <th>Book Title</th>
+          <th>ISBN</th>
+          <th>Issue Date</th>
+          <th>Return Date</th>
+          <th>Status</th>
+        </tr>
+      `;
+      if (Array.isArray(data) && data.length > 0) {
+        body.innerHTML = data.map(r => `
+          <tr>
+            <td><strong>${r.book ? r.book.title : 'N/A'}</strong></td>
+            <td>${r.book ? r.book.isbn : 'N/A'}</td>
+            <td>${r.issueDate}</td>
+            <td>${r.returnDate || 'N/A'}</td>
+            <td><span class="btn-status ${r.status === 'RETURNED' ? 'status-active' : 'status-inactive'}">${r.status}</span></td>
+          </tr>
+        `).join('');
+      } else {
+        body.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-muted); padding:1.5rem;">No library checkout logs found.</td></tr>';
+      }
+    }
+  },
+
+  async downloadReport() {
+    const studentId = document.getElementById('report-student-id').value;
+    const type = document.getElementById('report-type').value;
+    const days = document.getElementById('report-time-filter').value;
+    const startDate = document.getElementById('report-start-date').value;
+    const endDate = document.getElementById('report-end-date').value;
+
+    let url = `/api/school/students/${studentId}/report?type=${type}&days=${days}`;
+    if (days === 'custom' && startDate && endDate) {
+      url += `&startDate=${startDate}&endDate=${endDate}`;
+    }
+
+    const data = await App.apiCall(url);
+    if (!Array.isArray(data) || data.length === 0) {
+      App.showToast('No logs available to download.', 'error');
+      return;
+    }
+
+    let textContent = `=========================================\n`;
+    textContent += `         ACADEMIC HISTORY REPORT\n`;
+    textContent += `=========================================\n`;
+    textContent += `Type: ${type.toUpperCase()}\n`;
+    textContent += `Time Period: ${days === 'custom' ? `${startDate} to ${endDate}` : `${days} Days`}\n`;
+    textContent += `Report Generated On: ${new Date().toLocaleString()}\n`;
+    textContent += `=========================================\n\n`;
+
+    data.forEach((r, idx) => {
+      textContent += `Log #${idx + 1}\n`;
+      if (type === 'attendance') {
+        textContent += `Date: ${r.date} | Status: ${r.status} | Marked By: ${r.markedBy} | Remarks: ${r.remarks || 'None'}\n`;
+      } else if (type === 'fees') {
+        textContent += `Invoice ID: ${r.id} | Amount: $${r.amount} | Due Date: ${r.dueDate} | Status: ${r.status} | Payment Date: ${r.paymentDate || 'N/A'}\n`;
+      } else if (type === 'exams') {
+        textContent += `Exam: ${r.exam ? r.exam.examName : 'N/A'} | Subject: ${r.exam ? r.exam.subject : 'N/A'} | Marks: ${r.marksObtained} | Grade: ${r.grade || 'N/A'} | Remarks: ${r.remarks || 'None'}\n`;
+      } else if (type === 'library') {
+        textContent += `Book: ${r.book ? r.book.title : 'N/A'} | Issue Date: ${r.issueDate} | Return Date: ${r.returnDate || 'N/A'} | Status: ${r.status}\n`;
+      }
+      textContent += `-----------------------------------------\n`;
+    });
+
+    const blob = new Blob([textContent], { type: 'text/plain' });
+    const fileUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = fileUrl;
+    a.download = `Report-${type}-${studentId.substring(0,8)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    App.showToast('Report downloaded successfully!', 'success');
+  },
+
+  async emailReport() {
+    const studentId = document.getElementById('report-student-id').value;
+    const type = document.getElementById('report-type').value;
+    const days = document.getElementById('report-time-filter').value;
+    const startDate = document.getElementById('report-start-date').value;
+    const endDate = document.getElementById('report-end-date').value;
+
+    App.showToast('Compiling and emailing history report...', 'info');
+
+    const res = await App.apiCall(`/api/school/students/${studentId}/report/email`, {
+      method: 'POST',
+      body: JSON.stringify({ type, days, startDate, endDate })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('Report emailed successfully!', 'success');
     }
   }
 };

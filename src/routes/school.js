@@ -31,6 +31,66 @@ const checkSubRole = (allowedRoles) => {
   };
 };
 
+// Dynamic Permissions Check Middleware
+const checkPermission = (requiredMenu) => {
+  return async (req, res, next) => {
+    try {
+      const role = req.user.schoolUserRole;
+      if (!role) {
+        return res.status(403).json({ message: 'Access denied: Role context missing.' });
+      }
+
+      // SCHOOL_ADMIN always has full access to all tabs/modules
+      if (role === 'SCHOOL_ADMIN') return next();
+
+      // Look up permissions for this school and role
+      const perm = await prisma.rolePermission.findUnique({
+        where: {
+          schoolId_roleName: {
+            schoolId: req.user.schoolId,
+            roleName: role
+          }
+        }
+      });
+
+      const defaultMappings = {
+        PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+        VICE_PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+        TEACHER: ['Dashboard', 'Students', 'Attendance', 'Exams'],
+        STUDENT: ['Dashboard', 'Exams', 'Fees', 'Library'],
+        PARENT: ['Dashboard', 'Fees', 'Exams'],
+        ACCOUNTANT: ['Dashboard', 'Fees'],
+        LIBRARIAN: ['Dashboard', 'Library'],
+        RECEPTIONIST: ['Dashboard', 'Visitors']
+      };
+
+      let enabledMenus = [];
+      if (perm) {
+        enabledMenus = perm.menus.split(',');
+      } else if (defaultMappings[role]) {
+        enabledMenus = defaultMappings[role];
+        // Proactively seed this mapping in the background so it exists in database
+        await prisma.rolePermission.create({
+          data: {
+            schoolId: req.user.schoolId,
+            roleName: role,
+            menus: enabledMenus.join(',')
+          }
+        }).catch(err => console.error('Error auto-seeding permissions:', err));
+      }
+
+      if (enabledMenus.includes(requiredMenu)) {
+        return next();
+      }
+
+      return res.status(403).json({ message: `Access denied: Your role "${role}" does not have access to the "${requiredMenu}" module.` });
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      return res.status(500).json({ message: 'Internal server error checking permissions.' });
+    }
+  };
+};
+
 // ==========================================
 // 1. STUDENTS MODULE
 // ==========================================
@@ -56,7 +116,7 @@ router.get('/students', async (req, res) => {
 });
 
 // Register student user + profile
-router.post('/students', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER']), async (req, res) => {
+router.post('/students', checkPermission('Students'), async (req, res) => {
   try {
     const { name, email, username, password, rollNumber, grade, section, parentName, parentPhone } = req.body;
 
@@ -149,7 +209,7 @@ router.get('/teachers', async (req, res) => {
 });
 
 // Register teacher user + profile
-router.post('/teachers', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
+router.post('/teachers', checkPermission('Teachers'), async (req, res) => {
   try {
     const { name, email, username, password, employeeId, subject, qualification } = req.body;
 
@@ -243,8 +303,8 @@ router.get('/attendance', async (req, res) => {
   }
 });
 
-// Mark student attendance
-router.post('/attendance', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']), async (req, res) => {
+// Mark attendance log
+router.post('/attendance', checkPermission('Attendance'), async (req, res) => {
   try {
     const { studentId, date, status, remarks } = req.body;
 
@@ -317,7 +377,7 @@ router.get('/exams', async (req, res) => {
 });
 
 // Create exam
-router.post('/exams', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']), async (req, res) => {
+router.post('/exams', checkPermission('Exams'), async (req, res) => {
   try {
     const { examName, subject, maxMarks, examDate } = req.body;
 
@@ -362,7 +422,7 @@ router.get('/exams/:examId/results', async (req, res) => {
 });
 
 // Post student score for an exam
-router.post('/exams/:examId/results', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']), async (req, res) => {
+router.post('/exams/:examId/results', checkPermission('Exams'), async (req, res) => {
   try {
     const { examId } = req.params;
     const { studentId, marksObtained, grade, remarks } = req.body;
@@ -455,7 +515,7 @@ router.get('/fees', async (req, res) => {
 });
 
 // Issue invoice
-router.post('/fees', checkSubRole(['SCHOOL_ADMIN', 'ACCOUNTANT']), async (req, res) => {
+router.post('/fees', checkPermission('Fees'), async (req, res) => {
   try {
     const { studentId, amount, dueDate } = req.body;
 
@@ -646,7 +706,7 @@ router.get('/books', async (req, res) => {
 });
 
 // Add book to catalog
-router.post('/books', checkSubRole(['SCHOOL_ADMIN', 'LIBRARIAN']), async (req, res) => {
+router.post('/books', checkPermission('Library'), async (req, res) => {
   try {
     const { title, author, isbn, quantity } = req.body;
 
@@ -719,8 +779,8 @@ router.get('/books/issues', async (req, res) => {
   }
 });
 
-// Issue book
-router.post('/books/:bookId/issue', checkSubRole(['SCHOOL_ADMIN', 'LIBRARIAN']), async (req, res) => {
+// Checkout book copy
+router.post('/books/:bookId/issue', checkPermission('Library'), async (req, res) => {
   try {
     const { bookId } = req.params;
     const { studentId, issueDate } = req.body;
@@ -772,8 +832,8 @@ router.post('/books/:bookId/issue', checkSubRole(['SCHOOL_ADMIN', 'LIBRARIAN']),
   }
 });
 
-// Return book
-router.put('/books/issue/:id/return', checkSubRole(['SCHOOL_ADMIN', 'LIBRARIAN']), async (req, res) => {
+// Record book return
+router.put('/books/issue/:id/return', checkPermission('Library'), async (req, res) => {
   try {
     const { id } = req.params;
     const returnDate = new Date().toISOString().split('T')[0];
@@ -817,7 +877,7 @@ router.put('/books/issue/:id/return', checkSubRole(['SCHOOL_ADMIN', 'LIBRARIAN']
 // ==========================================
 
 // Get visitor logs
-router.get('/visitors', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
+router.get('/visitors', checkPermission('Visitors'), async (req, res) => {
   try {
     const logs = await prisma.visitorLog.findMany({
       where: { schoolId: req.user.schoolId },
@@ -831,7 +891,7 @@ router.get('/visitors', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST', 'PRINCIPAL
 });
 
 // Check in visitor
-router.post('/visitors', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST']), async (req, res) => {
+router.post('/visitors', checkPermission('Visitors'), async (req, res) => {
   try {
     const { name, phone, purpose } = req.body;
     if (!name || !phone || !purpose) {
@@ -867,7 +927,7 @@ router.post('/visitors', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST']), async (
 });
 
 // Check out visitor
-router.put('/visitors/:id/checkout', checkSubRole(['SCHOOL_ADMIN', 'RECEPTIONIST']), async (req, res) => {
+router.put('/visitors/:id/checkout', checkPermission('Visitors'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -926,6 +986,342 @@ router.get('/audit-logs', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINC
   } catch (error) {
     console.error('Error fetching school audit logs:', error);
     return res.status(500).json({ message: 'Error retrieving logs.' });
+  }
+});
+
+// GET /permissions
+router.get('/permissions', async (req, res) => {
+  try {
+    const perms = await prisma.rolePermission.findMany({
+      where: { schoolId: req.user.schoolId }
+    });
+    return res.json(perms);
+  } catch (error) {
+    console.error('Error fetching permissions:', error);
+    return res.status(500).json({ message: 'Error retrieving permissions.' });
+  }
+});
+
+// POST /permissions
+router.post('/permissions', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL']), async (req, res) => {
+  try {
+    const { roleName, menus } = req.body;
+    if (!roleName || !Array.isArray(menus)) {
+      return res.status(400).json({ message: 'Role Name and menus array are required.' });
+    }
+
+    const menusStr = menus.join(',');
+
+    const perm = await prisma.rolePermission.upsert({
+      where: {
+        schoolId_roleName: {
+          schoolId: req.user.schoolId,
+          roleName: roleName.toUpperCase()
+        }
+      },
+      update: { menus: menusStr },
+      create: {
+        schoolId: req.user.schoolId,
+        roleName: roleName.toUpperCase(),
+        menus: menusStr
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user.id,
+        actorName: req.user.name,
+        actorType: 'SCHOOL_USER',
+        action: 'ROLE_PERMISSIONS_UPDATED',
+        details: `Updated permissions for role "${roleName.toUpperCase()}". Enabled: ${menusStr}`,
+        ipAddress: req.ip
+      }
+    });
+
+    return res.json(perm);
+  } catch (error) {
+    console.error('Error updating permissions:', error);
+    return res.status(500).json({ message: 'Error updating permissions.' });
+  }
+});
+
+// PUT /users/:id
+router.put('/users/:id', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, role, active } = req.body;
+
+    const user = await prisma.schoolUser.findFirst({
+      where: { id, schoolId: req.user.schoolId }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.schoolUser.update({
+        where: { id },
+        data: {
+          name: name || user.name,
+          email: email ? email.toLowerCase() : user.email,
+          role: role || user.role,
+          active: active !== undefined ? active : user.active
+        }
+      });
+
+      if (updatedUser.role === 'TEACHER') {
+        const { employeeId, subject, qualification } = req.body;
+        await tx.teacherProfile.upsert({
+          where: { userId: id },
+          update: { employeeId, subject, qualification },
+          create: { userId: id, employeeId: employeeId || 'N/A', subject: subject || 'General', qualification: qualification || 'N/A' }
+        });
+      } else if (updatedUser.role === 'STUDENT') {
+        const { rollNumber, grade, section, parentName, parentPhone } = req.body;
+        await tx.studentProfile.upsert({
+          where: { userId: id },
+          update: { rollNumber, grade, section, parentName, parentPhone },
+          create: { userId: id, rollNumber: rollNumber || 'N/A', grade: grade || 'N/A', section: section || 'N/A', parentName: parentName || 'N/A', parentPhone: parentPhone || 'N/A' }
+        });
+      }
+
+      return updatedUser;
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user.id,
+        actorName: req.user.name,
+        actorType: 'SCHOOL_USER',
+        action: 'USER_PROFILE_UPDATED',
+        details: `Updated details for user "${updated.name}" (@${updated.username}).`,
+        ipAddress: req.ip
+      }
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    return res.status(500).json({ message: 'Error updating user profile.' });
+  }
+});
+
+// GET /users/:id/logs
+router.get('/users/:id/logs', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.schoolUser.findFirst({
+      where: { id, schoolId: req.user.schoolId }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { actorId: id },
+          { details: { contains: user.name } },
+          { details: { contains: user.username } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.json(logs);
+  } catch (error) {
+    console.error('Error fetching user audit logs:', error);
+    return res.status(500).json({ message: 'Error retrieving user logs.' });
+  }
+});
+
+// GET /students/:id/report
+router.get('/students/:id/report', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, days, startDate, endDate } = req.query;
+
+    const parentStudentId = await getParentStudentId(req);
+    if (req.user.schoolUserRole === 'STUDENT' && id !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied.' });
+    } else if (parentStudentId && id !== parentStudentId) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    let startDateTime;
+    if (startDate && endDate) {
+      startDateTime = new Date(startDate);
+    } else if (days && days !== 'custom') {
+      const daysLimit = parseInt(days, 10) || 30;
+      startDateTime = new Date();
+      startDateTime.setDate(startDateTime.getDate() - daysLimit);
+    }
+
+    const endDateTime = endDate ? new Date(endDate) : new Date();
+
+    let reportData = [];
+    if (type === 'attendance') {
+      reportData = await prisma.attendance.findMany({
+        where: {
+          studentId: id,
+          ...(startDateTime ? {
+            createdAt: {
+              gte: startDateTime,
+              lte: endDateTime
+            }
+          } : {})
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    } else if (type === 'fees') {
+      reportData = await prisma.feeInvoice.findMany({
+        where: {
+          studentId: id,
+          ...(startDateTime ? {
+            createdAt: {
+              gte: startDateTime,
+              lte: endDateTime
+            }
+          } : {})
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    } else if (type === 'exams') {
+      reportData = await prisma.examResult.findMany({
+        where: {
+          studentId: id,
+          ...(startDateTime ? {
+            createdAt: {
+              gte: startDateTime,
+              lte: endDateTime
+            }
+          } : {})
+        },
+        include: { exam: true },
+        orderBy: { createdAt: 'desc' }
+      });
+    } else if (type === 'library') {
+      reportData = await prisma.bookIssue.findMany({
+        where: {
+          studentId: id,
+          ...(startDateTime ? {
+            createdAt: {
+              gte: startDateTime,
+              lte: endDateTime
+            }
+          } : {})
+        },
+        include: { book: true },
+        orderBy: { createdAt: 'desc' }
+      });
+    }
+
+    return res.json(reportData);
+  } catch (error) {
+    console.error('Error fetching student report:', error);
+    return res.status(500).json({ message: 'Error retrieving student report.' });
+  }
+});
+
+// POST /students/:id/report/email
+router.post('/students/:id/report/email', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, days, startDate, endDate } = req.body;
+
+    const parentStudentId = await getParentStudentId(req);
+    if (req.user.schoolUserRole === 'STUDENT' && id !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied.' });
+    } else if (parentStudentId && id !== parentStudentId) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    let startDateTime;
+    if (startDate && endDate) {
+      startDateTime = new Date(startDate);
+    } else if (days && days !== 'custom') {
+      const daysLimit = parseInt(days, 10) || 30;
+      startDateTime = new Date();
+      startDateTime.setDate(startDateTime.getDate() - daysLimit);
+    }
+    const endDateTime = endDate ? new Date(endDate) : new Date();
+
+    let recordsHtml = '';
+    let studentObj = await prisma.schoolUser.findUnique({ where: { id } });
+
+    if (type === 'attendance') {
+      const records = await prisma.attendance.findMany({
+        where: { studentId: id, ...(startDateTime ? { createdAt: { gte: startDateTime, lte: endDateTime } } : {}) },
+        orderBy: { createdAt: 'desc' }
+      });
+      recordsHtml = `
+        <h3>Attendance History Logs</h3>
+        <table border="1" cellpadding="6" style="border-collapse: collapse; width:100%;">
+          <tr style="background:#f4f4f4;"><th>Date</th><th>Status</th><th>Marked By</th></tr>
+          ${records.map(r => `<tr><td>${r.date}</td><td>${r.status}</td><td>${r.markedBy}</td></tr>`).join('')}
+        </table>
+      `;
+    } else if (type === 'fees') {
+      const records = await prisma.feeInvoice.findMany({
+        where: { studentId: id, ...(startDateTime ? { createdAt: { gte: startDateTime, lte: endDateTime } } : {}) },
+        orderBy: { createdAt: 'desc' }
+      });
+      recordsHtml = `
+        <h3>Fees & Invoices History Logs</h3>
+        <table border="1" cellpadding="6" style="border-collapse: collapse; width:100%;">
+          <tr style="background:#f4f4f4;"><th>Invoice ID</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Paid On</th></tr>
+          ${records.map(r => `<tr><td>#${r.id.substring(0,8)}</td><td>$${r.amount.toFixed(2)}</td><td>${r.dueDate}</td><td>${r.status}</td><td>${r.paymentDate || 'N/A'}</td></tr>`).join('')}
+        </table>
+      `;
+    } else if (type === 'exams') {
+      const records = await prisma.examResult.findMany({
+        where: { studentId: id, ...(startDateTime ? { createdAt: { gte: startDateTime, lte: endDateTime } } : {}) },
+        include: { exam: true },
+        orderBy: { createdAt: 'desc' }
+      });
+      recordsHtml = `
+        <h3>Exam Scores History Logs</h3>
+        <table border="1" cellpadding="6" style="border-collapse: collapse; width:100%;">
+          <tr style="background:#f4f4f4;"><th>Exam Name</th><th>Subject</th><th>Marks</th><th>Grade</th><th>Remarks</th></tr>
+          ${records.map(r => `<tr><td>${r.exam.examName}</td><td>${r.exam.subject}</td><td>${r.marksObtained} / ${r.exam.maxMarks}</td><td>${r.grade || 'N/A'}</td><td>${r.remarks || 'None'}</td></tr>`).join('')}
+        </table>
+      `;
+    } else if (type === 'library') {
+      const records = await prisma.bookIssue.findMany({
+        where: { studentId: id, ...(startDateTime ? { createdAt: { gte: startDateTime, lte: endDateTime } } : {}) },
+        include: { book: true },
+        orderBy: { createdAt: 'desc' }
+      });
+      recordsHtml = `
+        <h3>Library Checkout History Logs</h3>
+        <table border="1" cellpadding="6" style="border-collapse: collapse; width:100%;">
+          <tr style="background:#f4f4f4;"><th>Book Title</th><th>Issue Date</th><th>Return Date</th><th>Status</th></tr>
+          ${records.map(r => `<tr><td>${r.book.title}</td><td>${r.issueDate}</td><td>${r.returnDate || 'N/A'}</td><td>${r.status}</td></tr>`).join('')}
+        </table>
+      `;
+    }
+
+    const reportHtml = `
+      <h2>Student History Log Report</h2>
+      <p><strong>Student Name:</strong> ${studentObj ? studentObj.name : 'Unknown'}</p>
+      <p><strong>Time Period:</strong> ${startDate && endDate ? `${startDate} to ${endDate}` : `${days || '30'} Days`}</p>
+      <hr/>
+      ${recordsHtml}
+    `;
+
+    await sendEmail({
+      to: req.user.email,
+      subject: `Student History Report - ${type.toUpperCase()}`,
+      html: reportHtml
+    });
+
+    return res.json({ message: 'Report compiled and sent to your email successfully.' });
+  } catch (error) {
+    console.error('Error emailing student report:', error);
+    return res.status(500).json({ message: 'Error emailing report.' });
   }
 });
 

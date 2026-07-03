@@ -1,34 +1,46 @@
-👥 Stage 7 Parents, Receptionists, and Vice Principals Modules
-We built the core dashboard views and database schemas for all remaining Level 3 sub-roles:
+Implementation Plan - Stage 8: User-Level Access Control overrides
+This upgrade expands the permissions system to support fine-grained, individual user-level permissions overrides (User ACLs) in addition to role defaults.
 
-VisitorLog Schema: Declared a VisitorLog table mapped to the School tenant to log check-ins, entry times, purposes, and check-out stamps.
-Receptionist Portal: Rendered a custom sidebar tab Visitors with an entry form and check-out logs table, backed by GET/POST/PUT endpoints.
-Parent Portal: Integrated child-log matching. When a Parent user logs in, the API automatically resolves their child based on their registered name. The parent's dashboard can check child academic scores, check attendance, pay invoices online, and request emailed receipts.
-Vice Principal Access: Configured menu layouts and route decorator authorization matching Principal administrative privileges.
-Interactive Testing: Expanded test-flow.js with Step 22-28 checks, logging real SMTP welcome credentials, check-ins, checkouts, child-linking, and VP permissions successfully.
-🛠️ Timezone, IP, and Vice Principal Refinements
-We completed final refinements to UI and config options:
+Proposed Changes
+Component 1: Database Schema
+[MODIFY] 
+schema.prisma
+Add UserPermission model:
+prisma
 
-Vice Principal Student Addition: Allowed Vice Principals to register new students (enabled on backend router and frontend UI button).
-Alerts Status: Updated the Developer dashboard features panel to show SMS / Email Alerts as ENABLED.
-Loopback IP Normalization: Added global Express request middleware to rewrite loopback IPv6 (::1) into standard IPv4 (127.0.0.1) so audit logs always record clean local addresses.
-IST Timezone defaults: Added IST (Indian Standard Time) as the default platform setting during wizard initialization and settings updates.
-🔒 Audit Log Access & Vice Principal Permissions Refinements
-We resolved the 403 authorization failures and mapped missing school permissions:
+model UserPermission {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      SchoolUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menus     String     // e.g. "Dashboard,Students,Exams"
+  createdAt DateTime   @default(now())
+}
+Declare userPermission UserPermission? on SchoolUser model.
+Component 2: Backend API Endpoints
+[MODIFY] 
+school.js (routes)
+Refactored checkPermission(requiredMenu) Middleware:
+First checks if the individual user has a custom UserPermission override in the database.
+If yes, validates against that override.
+If no override, falls back to RolePermission or role defaults.
+Get My Permissions (GET /api/school/permissions/mine):
+Returns the active user's permissions (user override if present, else role default).
+Manage User Permissions (GET/POST /api/school/users/:id/permissions):
+GET: Fetches permissions for a specific user.
+POST: Upserts a custom override list for a user.
+Component 3: Frontend Dashboard Integration
+[MODIFY] 
+dashboard.js
+My Navigation Tabs:
+Loads active user sidebar tabs from /api/school/permissions/mine.
+User Permission Actions:
+Adds a "Permissions" button to user table rows (Students and Teachers).
+Opens a modal overlay containing checkboxes for all modules, permitting specific overrides.
+Verification Plan
+Automated Tests
+Expand test-flow.js steps:
 
-School-scoped Audit Logs (GET /api/school/audit-logs): Introduced a school-specific endpoint to query audit logs generated within the school tenant, resolving the 403 Forbidden error caused by referencing the Super Admin's /api/admin/audit-logs endpoint.
-Teacher Registration Permissions: Authorized Principals and Vice Principals to register new school faculty members (updated backend router and toggle button).
-Read-Only Library Catalogue: Added Library to the Principal and Vice Principal sidebar menus. Configured a read-only catalogue view (hiding add/check-out/return cataloguing actions) to prevent 403 Forbidden errors when accessed by non-librarian/non-admin roles.
-🚀 Execution & Credentials
-To spin up the environment and run:
-
-Start the server:
-powershell
-
-npm run dev
-Log in at http://localhost:3000 using the credentials:
-Developer: devroot / password123
-Super Admin: sarah_admin / password123
-School Admin (Oakridge Academy): School Code OAK-01, Username sarah_principal, Password password123
-School Teacher (Oakridge Academy): School Code OAK-01, Username mark_teacher, Password password123
-School Student (Oakridge Academy): School Code OAK-01, Username harry_potter, Password password123
+Fetch teacher permissions (defaults to TEACHER menus).
+Admin sets custom override for that specific teacher allowing Library access.
+Log in as that teacher and verify they can fetch books without 403 Forbidden.
+Verify other teachers without overrides still get 403 Forbidden on books.

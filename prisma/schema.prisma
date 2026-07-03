@@ -68,6 +68,7 @@ model School {
   createdAt        DateTime     @default(now())
   users            SchoolUser[]
   visitorLogs      VisitorLog[]
+  rolePermissions  RolePermission[]
 }
 
 model SchoolUser {
@@ -209,4 +210,15 @@ model VisitorLog {
   entryTime DateTime  @default(now())
   exitTime  DateTime?
   status    String    // CHECKED_IN, CHECKED_OUT
+}
+
+model RolePermission {
+  id        String   @id @default(uuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  roleName  String
+  menus     String   // e.g. "Dashboard,Students,Exams"
+  createdAt DateTime @default(now())
+
+  @@unique([schoolId, roleName])
 }
