@@ -88,6 +88,7 @@ model SchoolUser {
   examResults    ExamResult[]
   feeInvoices    FeeInvoice[]
   bookIssues     BookIssue[]
+  userPermission UserPermission?
 
   @@unique([schoolId, username])
 }
@@ -221,4 +222,12 @@ model RolePermission {
   createdAt DateTime @default(now())
 
   @@unique([schoolId, roleName])
+}
+
+model UserPermission {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      SchoolUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menus     String     // e.g. "Dashboard,Students,Exams"
+  createdAt DateTime   @default(now())
 }

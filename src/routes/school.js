@@ -35,6 +35,7 @@ const checkSubRole = (allowedRoles) => {
 const checkPermission = (requiredMenu) => {
   return async (req, res, next) => {
     try {
+      const userId = req.user.id;
       const role = req.user.schoolUserRole;
       if (!role) {
         return res.status(403).json({ message: 'Access denied: Role context missing.' });
@@ -43,7 +44,20 @@ const checkPermission = (requiredMenu) => {
       // SCHOOL_ADMIN always has full access to all tabs/modules
       if (role === 'SCHOOL_ADMIN') return next();
 
-      // Look up permissions for this school and role
+      // 1. Check user-level permission override
+      const userPerm = await prisma.userPermission.findUnique({
+        where: { userId }
+      });
+
+      if (userPerm) {
+        const enabledMenus = userPerm.menus.split(',');
+        if (enabledMenus.includes(requiredMenu)) {
+          return next();
+        }
+        return res.status(403).json({ message: `Access denied: Your user profile does not have access to the "${requiredMenu}" module.` });
+      }
+
+      // 2. Fallback to role-level permission
       const perm = await prisma.rolePermission.findUnique({
         where: {
           schoolId_roleName: {
@@ -1044,6 +1058,122 @@ router.post('/permissions', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL']), async (
     return res.status(500).json({ message: 'Error updating permissions.' });
   }
 });
+
+// GET /permissions/mine
+router.get('/permissions/mine', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.schoolUserRole || 'SCHOOL_ADMIN';
+
+    if (role === 'SCHOOL_ADMIN') {
+      return res.json({
+        menus: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Visitors', 'Audit Logs', 'Access Control']
+      });
+    }
+
+    // Check User override
+    const userPerm = await prisma.userPermission.findUnique({
+      where: { userId }
+    });
+
+    if (userPerm) {
+      return res.json({ menus: userPerm.menus.split(',') });
+    }
+
+    // Check Role mapping
+    const perm = await prisma.rolePermission.findUnique({
+      where: {
+        schoolId_roleName: {
+          schoolId: req.user.schoolId,
+          roleName: role
+        }
+      }
+    });
+
+    if (perm) {
+      return res.json({ menus: perm.menus.split(',') });
+    }
+
+    // Check default role mapping
+    const defaultMappings = {
+      PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+      VICE_PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+      TEACHER: ['Dashboard', 'Students', 'Attendance', 'Exams'],
+      STUDENT: ['Dashboard', 'Exams', 'Fees', 'Library'],
+      PARENT: ['Dashboard', 'Fees', 'Exams'],
+      ACCOUNTANT: ['Dashboard', 'Fees'],
+      LIBRARIAN: ['Dashboard', 'Library'],
+      RECEPTIONIST: ['Dashboard', 'Visitors']
+    };
+
+    const menus = defaultMappings[role] || ['Dashboard'];
+    return res.json({ menus });
+  } catch (error) {
+    console.error('Error retrieving mine permissions:', error);
+    return res.status(500).json({ message: 'Error retrieving your permissions.' });
+  }
+});
+
+// GET /users/:id/permissions
+router.get('/users/:id/permissions', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const perm = await prisma.userPermission.findUnique({
+      where: { userId: id }
+    });
+    return res.json(perm || { userId: id, menus: '' });
+  } catch (error) {
+    console.error('Error fetching user permissions:', error);
+    return res.status(500).json({ message: 'Error fetching user permissions.' });
+  }
+});
+
+// POST /users/:id/permissions
+router.post('/users/:id/permissions', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { menus } = req.body; // array of strings
+    if (!Array.isArray(menus)) {
+      return res.status(400).json({ message: 'Menus array is required.' });
+    }
+
+    const user = await prisma.schoolUser.findFirst({
+      where: { id, schoolId: req.user.schoolId }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found in this school.' });
+    }
+
+    const menusStr = menus.join(',');
+
+    const perm = await prisma.userPermission.upsert({
+      where: { userId: id },
+      update: { menus: menusStr },
+      create: {
+        userId: id,
+        menus: menusStr
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user.id,
+        actorName: req.user.name,
+        actorType: 'SCHOOL_USER',
+        action: 'USER_PERMISSIONS_UPDATED',
+        details: `Updated individual permissions override for user "${user.name}" (@${user.username}). Enabled: ${menusStr}`,
+        ipAddress: req.ip
+      }
+    });
+
+    return res.json(perm);
+  } catch (error) {
+    console.error('Error updating user permissions:', error);
+    return res.status(500).json({ message: 'Error updating user permissions.' });
+  }
+});
+
 
 // PUT /users/:id
 router.put('/users/:id', checkSubRole(['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL']), async (req, res) => {

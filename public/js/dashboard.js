@@ -1576,14 +1576,8 @@ const DashboardPortal = {
       RECEPTIONIST: ['Dashboard', 'Visitors']
     };
 
-    const perms = await App.apiCall('/api/school/permissions');
-    if (Array.isArray(perms)) {
-      perms.forEach(p => {
-        roleMenus[p.roleName] = p.menus.split(',');
-      });
-    }
-
-    const menus = roleMenus[role] || ['Dashboard'];
+    const myPerms = await App.apiCall('/api/school/permissions/mine');
+    const menus = (myPerms && Array.isArray(myPerms.menus)) ? myPerms.menus : ['Dashboard'];
     this.activeTab = localStorage.getItem('schoolActiveTab') || 'Dashboard';
     if (!menus.includes(this.activeTab)) {
       this.activeTab = menus[0];
@@ -2143,6 +2137,29 @@ const DashboardPortal = {
           <div class="modal-actions">
             <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleStudentReportModal(false)">Close</button>
           </div>
+      </div>
+      
+      <!-- User Permissions Modal -->
+      <div class="modal-overlay" id="user-permissions-modal">
+        <div class="modal-box" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h3 id="user-permissions-title">Configure Individual Permissions</h3>
+          </div>
+          <input type="hidden" id="perm-user-id">
+          
+          <div style="margin-top: 1rem;">
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 1rem;">
+              Select modules that this user is explicitly allowed to access. Leaving it unmodified uses the default role-based settings.
+            </p>
+            <div id="user-permissions-checkboxes" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- Checkboxes dynamically rendered -->
+            </div>
+          </div>
+          
+          <div class="modal-actions" style="margin-top: 1.5rem;">
+            <button type="button" class="btn btn-secondary" onclick="DashboardPortal.toggleUserPermissionsModal(false)">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="DashboardPortal.saveUserPermissions()">Save Mappings</button>
+          </div>
         </div>
       </div>
     `;
@@ -2249,6 +2266,11 @@ const DashboardPortal = {
                   <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px;" onclick="DashboardPortal.openUserLogsModal('${s.id}', '${s.name}')">
                     Logs
                   </button>
+                  ${['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL'].includes(userRole) ? `
+                  <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 4px;" onclick="DashboardPortal.openUserPermissionsModal('${s.id}', '${s.name}', '${s.role}')">
+                    Perms
+                  </button>
+                  ` : ''}
                 </td>
               `;
             }
@@ -2318,6 +2340,11 @@ const DashboardPortal = {
                   <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px;" onclick="DashboardPortal.openUserLogsModal('${t.id}', '${t.name}')">
                     Logs
                   </button>
+                  ${['SCHOOL_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL'].includes(userRole) ? `
+                  <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 4px;" onclick="DashboardPortal.openUserPermissionsModal('${t.id}', '${t.name}', '${t.role}')">
+                    Perms
+                  </button>
+                  ` : ''}
                 </td>
               `;
             }
@@ -3662,6 +3689,83 @@ Thank you for your payment!
     if (!modal) return;
     if (show) modal.classList.add('active');
     else modal.classList.remove('active');
+  },
+
+  toggleUserPermissionsModal(show) {
+    const modal = document.getElementById('user-permissions-modal');
+    if (!modal) return;
+    if (show) modal.classList.add('active');
+    else modal.classList.remove('active');
+  },
+
+  async openUserPermissionsModal(userId, userName, userRole) {
+    document.getElementById('perm-user-id').value = userId;
+    document.getElementById('user-permissions-title').textContent = `Individual Overrides: ${userName}`;
+
+    const container = document.getElementById('user-permissions-checkboxes');
+    container.innerHTML = '<p class="text-center" style="font-size:12px;">Loading active permissions...</p>';
+
+    this.toggleUserPermissionsModal(true);
+
+    const allModules = ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Fees', 'Exams', 'Library', 'Visitors', 'Audit Logs', 'Access Control'];
+
+    // Fetch user override mapping
+    const res = await App.apiCall(`/api/school/users/${userId}/permissions`);
+    const enabledMenus = (res && res.menus) ? res.menus.split(',') : [];
+
+    // Fallback to role permissions if no user override exists (so checkboxes start populated with their role defaults)
+    let roleMenusList = [];
+    if (!res || !res.menus) {
+      const defaultPerms = {
+        PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+        VICE_PRINCIPAL: ['Dashboard', 'Students', 'Teachers', 'Attendance', 'Exams', 'Library'],
+        TEACHER: ['Dashboard', 'Students', 'Attendance', 'Exams'],
+        STUDENT: ['Dashboard', 'Exams', 'Fees', 'Library'],
+        PARENT: ['Dashboard', 'Fees', 'Exams'],
+        ACCOUNTANT: ['Dashboard', 'Fees'],
+        LIBRARIAN: ['Dashboard', 'Library'],
+        RECEPTIONIST: ['Dashboard', 'Visitors']
+      };
+      roleMenusList = defaultPerms[userRole] || ['Dashboard'];
+    } else {
+      roleMenusList = enabledMenus;
+    }
+
+    container.innerHTML = allModules.map(mod => {
+      const checked = roleMenusList.includes(mod) ? 'checked' : '';
+      return `
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 4px 0;">
+          <input type="checkbox" class="user-perm-checkbox" value="${mod}" ${checked}>
+          ${mod}
+        </label>
+      `;
+    }).join('');
+  },
+
+  async saveUserPermissions() {
+    const userId = document.getElementById('perm-user-id').value;
+    const checkboxes = document.querySelectorAll('.user-perm-checkbox');
+    const menus = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) menus.push(cb.value);
+    });
+
+    App.showToast('Saving user override permissions...', 'info');
+    const res = await App.apiCall(`/api/school/users/${userId}/permissions`, {
+      method: 'POST',
+      body: JSON.stringify({ menus })
+    });
+
+    if (res.error) {
+      App.showToast(res.message, 'error');
+    } else {
+      App.showToast('User permissions override updated successfully!', 'success');
+      this.toggleUserPermissionsModal(false);
+      // If updating our own permissions, reload to reflect sidebar instantly
+      if (userId === App.state.user.id) {
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    }
   },
 
   openStudentReportModal(studentId, name) {
