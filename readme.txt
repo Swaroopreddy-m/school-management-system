@@ -1,46 +1,96 @@
-Implementation Plan - Stage 8: User-Level Access Control overrides
-This upgrade expands the permissions system to support fine-grained, individual user-level permissions overrides (User ACLs) in addition to role defaults.
+Production Deployment & Operations Guide
+This guide provides instructions for deploying, configuring, and maintaining the SaaS School Management System in a production environment.
 
-Proposed Changes
-Component 1: Database Schema
-[MODIFY] 
-schema.prisma
-Add UserPermission model:
-prisma
+📋 Prerequisites
+Before starting deployment, ensure the production server has the following installed:
 
-model UserPermission {
-  id        String     @id @default(uuid())
-  userId    String     @unique
-  user      SchoolUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  menus     String     // e.g. "Dashboard,Students,Exams"
-  createdAt DateTime   @default(now())
+Node.js: Version 18.x or 20.x LTS.
+NPM: Version 9.x or later.
+Database:
+Default: SQLite (fully configured and optimized for low-to-medium tenants).
+Optional: PostgreSQL (supported by switching the database provider in prisma/schema.prisma and changing the DATABASE_URL).
+Process Manager: PM2 (globally installed via npm install -g pm2).
+Reverse Proxy: IIS (with URL Rewrite) on Windows, or Nginx on Linux.
+SSL Certificate: Let's Encrypt or a custom CA certificate.
+⚙️ Environment Configuration
+Create a secure .env file in the project root containing the following variables:
+
+ini
+
+# Server Configuration
+PORT=3000
+NODE_ENV=production
+# Database Connection URL (SQLite path or PostgreSQL connection string)
+DATABASE_URL="file:./dev.db"
+# Security Configurations
+JWT_SECRET="generate-a-secure-64-character-random-key"
+# SMTP Mail Server Settings (For real email alerts delivery)
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="your-email@gmail.com"
+SMTP_PASS="your-gmail-app-password"
+SMTP_FROM="noreply@eduportal.com"
+🗄️ Database Setup & Migrations
+Deploy the schema migrations and generate the client on the production server:
+
+Install production dependencies:
+bash
+
+npm ci --only=production
+Apply migrations without interactive prompts:
+bash
+
+npx prisma migrate deploy
+Generate Prisma Client bindings:
+bash
+
+npx prisma generate
+🚀 Process Management (PM2)
+Use PM2 to run the Express server as a background service that auto-restarts on server reboots or application crashes.
+
+Start the application process:
+bash
+
+pm2 start src/server.js --name "school-system"
+Save the current process list:
+bash
+
+pm2 save
+Configure PM2 startup service:
+On Windows, use pm2-windows-service or a Task Scheduler task.
+On Linux:
+bash
+
+pm2 startup
+🔒 Reverse Proxy Configuration (Nginx / IIS)
+Do not expose the raw port 3000 to users. Route requests through a reverse proxy.
+
+Nginx Example Config
+nginx
+
+server {
+    listen 80;
+    server_name portal.yourdomain.com;
+    return 301 https://$host$request_uri;
 }
-Declare userPermission UserPermission? on SchoolUser model.
-Component 2: Backend API Endpoints
-[MODIFY] 
-school.js (routes)
-Refactored checkPermission(requiredMenu) Middleware:
-First checks if the individual user has a custom UserPermission override in the database.
-If yes, validates against that override.
-If no override, falls back to RolePermission or role defaults.
-Get My Permissions (GET /api/school/permissions/mine):
-Returns the active user's permissions (user override if present, else role default).
-Manage User Permissions (GET/POST /api/school/users/:id/permissions):
-GET: Fetches permissions for a specific user.
-POST: Upserts a custom override list for a user.
-Component 3: Frontend Dashboard Integration
-[MODIFY] 
-dashboard.js
-My Navigation Tabs:
-Loads active user sidebar tabs from /api/school/permissions/mine.
-User Permission Actions:
-Adds a "Permissions" button to user table rows (Students and Teachers).
-Opens a modal overlay containing checkboxes for all modules, permitting specific overrides.
-Verification Plan
-Automated Tests
-Expand test-flow.js steps:
-
-Fetch teacher permissions (defaults to TEACHER menus).
-Admin sets custom override for that specific teacher allowing Library access.
-Log in as that teacher and verify they can fetch books without 403 Forbidden.
-Verify other teachers without overrides still get 403 Forbidden on books.
+server {
+    listen 443 ssl;
+    server_name portal.yourdomain.com;
+    ssl_certificate /etc/letsencrypt/live/portal.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/portal.yourdomain.com/privkey.pem;
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+💾 Backups & Database Maintenance
+Backups location: Backups are saved in the database backups directory inside the project root: c:\Users\user\Documents\Projects\school-management-system\backups\.
+Execution: Backups can be triggered directly from the Developer Portal Dashboard under Database Maintenance or via cron jobs querying POST /api/developer/backup.
+Restoration: Databases can be restored by uploading/choosing a backup file in the Developer Dashboard or making a POST /api/developer/restore API request.
