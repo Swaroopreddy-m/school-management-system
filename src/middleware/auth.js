@@ -13,6 +13,16 @@ const authenticate = (allowedRoles = []) => {
 
       const token = authHeader.split(' ')[1];
       const decoded = jwt.verify(token, JWT_SECRET);
+
+      // Validate active session
+      if (!decoded.sessionId) {
+        return res.status(401).json({ message: 'Session invalid. Please login again.' });
+      }
+      const activeSession = await prisma.activeSession.findUnique({ where: { userId: decoded.id } });
+      if (!activeSession || activeSession.sessionId !== decoded.sessionId) {
+        return res.status(401).json({ message: 'Session active elsewhere or expired. Please login again.' });
+      }
+
       req.user = decoded;
 
       if (allowedRoles.length > 0 && !allowedRoles.includes(decoded.role)) {

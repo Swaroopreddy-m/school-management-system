@@ -818,3 +818,109 @@ select.input-control {
   70% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(147, 51, 234, 0); }
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
 }
+
+/* Responsive Multi-Device Adaptations */
+.mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .mobile-only {
+    display: inline-flex !important;
+  }
+  
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Mobile Sidebar slide-out drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    width: var(--sidebar-width);
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .sidebar.mobile-open {
+    left: 0;
+  }
+  
+  /* Sidebar backdrop overlay */
+  .sidebar-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+    display: none;
+  }
+  
+  .sidebar-backdrop.active {
+    display: block;
+  }
+  
+  .header {
+    padding: 0 1rem;
+  }
+  
+  .content-body {
+    padding: 1.5rem 1rem;
+  }
+  
+  /* Form adjustments */
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  /* Table container overflow */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table {
+    min-width: 600px;
+  }
+  
+  /* Touch target optimizations */
+  .btn, .input-control, .menu-item {
+    min-height: 44px;
+  }
+}
+
+/* Tablet Optimizations */
+@media (min-width: 901px) and (max-width: 1200px) {
+  :root {
+    --sidebar-width: 200px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Large TV Screen Optimizations */
+@media (min-width: 1920px) {
+  body {
+    font-size: 17px;
+  }
+  .main-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .btn, .input-control {
+    font-size: 16px;
+    padding: 0.9rem 1.75rem;
+  }
+}

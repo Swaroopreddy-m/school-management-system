@@ -255,15 +255,32 @@ router.post('/database/backup', async (req, res) => {
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
     }
-    const dbPath = path.join(__dirname, '../../prisma/dev.db');
-    const backupFileName = `backup_${Date.now()}.db`;
+
+    const backupFileName = `backup_${Date.now()}.json`;
     const backupFilePath = path.join(backupDir, backupFileName);
 
-    if (fs.existsSync(dbPath)) {
-      fs.copyFileSync(dbPath, backupFilePath);
-    } else {
-      return res.status(404).json({ message: 'Active SQLite database file not found.' });
-    }
+    // Fetch all tables
+    const data = {
+      developers: await prisma.developer.findMany(),
+      platformSettings: await prisma.platformSettings.findMany(),
+      superAdmins: await prisma.superAdmin.findMany(),
+      schools: await prisma.school.findMany(),
+      schoolUsers: await prisma.schoolUser.findMany(),
+      studentProfiles: await prisma.studentProfile.findMany(),
+      teacherProfiles: await prisma.teacherProfile.findMany(),
+      attendances: await prisma.attendance.findMany(),
+      exams: await prisma.exam.findMany(),
+      examResults: await prisma.examResult.findMany(),
+      feeInvoices: await prisma.feeInvoice.findMany(),
+      books: await prisma.book.findMany(),
+      bookIssues: await prisma.bookIssue.findMany(),
+      visitorLogs: await prisma.visitorLog.findMany(),
+      rolePermissions: await prisma.rolePermission.findMany(),
+      userPermissions: await prisma.userPermission.findMany(),
+      auditLogs: await prisma.auditLog.findMany()
+    };
+
+    fs.writeFileSync(backupFilePath, JSON.stringify(data, null, 2), 'utf8');
 
     await prisma.auditLog.create({
       data: {
@@ -291,14 +308,53 @@ router.post('/database/restore', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     const backupFilePath = path.join(__dirname, '../../backups', filename);
-    const dbPath = path.join(__dirname, '../../prisma/dev.db');
 
     if (!fs.existsSync(backupFilePath)) {
       return res.status(404).json({ message: 'Backup snapshot file not found.' });
     }
 
-    // Overwrite current active database
-    fs.copyFileSync(backupFilePath, dbPath);
+    const data = JSON.parse(fs.readFileSync(backupFilePath, 'utf8'));
+
+    // Recreate all tables inside a transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Wipe tables in correct reverse-dependency order
+      await tx.userPermission.deleteMany();
+      await tx.rolePermission.deleteMany();
+      await tx.visitorLog.deleteMany();
+      await tx.bookIssue.deleteMany();
+      await tx.book.deleteMany();
+      await tx.feeInvoice.deleteMany();
+      await tx.examResult.deleteMany();
+      await tx.exam.deleteMany();
+      await tx.attendance.deleteMany();
+      await tx.teacherProfile.deleteMany();
+      await tx.studentProfile.deleteMany();
+      await tx.schoolUser.deleteMany();
+      await tx.school.deleteMany();
+      await tx.superAdmin.deleteMany();
+      await tx.platformSettings.deleteMany();
+      await tx.developer.deleteMany();
+      await tx.auditLog.deleteMany();
+
+      // 2. Restore tables in dependency order
+      if (data.developers && data.developers.length > 0) await tx.developer.createMany({ data: data.developers });
+      if (data.platformSettings && data.platformSettings.length > 0) await tx.platformSettings.createMany({ data: data.platformSettings });
+      if (data.superAdmins && data.superAdmins.length > 0) await tx.superAdmin.createMany({ data: data.superAdmins });
+      if (data.schools && data.schools.length > 0) await tx.school.createMany({ data: data.schools });
+      if (data.schoolUsers && data.schoolUsers.length > 0) await tx.schoolUser.createMany({ data: data.schoolUsers });
+      if (data.studentProfiles && data.studentProfiles.length > 0) await tx.studentProfile.createMany({ data: data.studentProfiles });
+      if (data.teacherProfiles && data.teacherProfiles.length > 0) await tx.teacherProfile.createMany({ data: data.teacherProfiles });
+      if (data.attendances && data.attendances.length > 0) await tx.attendance.createMany({ data: data.attendances });
+      if (data.exams && data.exams.length > 0) await tx.exam.createMany({ data: data.exams });
+      if (data.examResults && data.examResults.length > 0) await tx.examResult.createMany({ data: data.examResults });
+      if (data.feeInvoices && data.feeInvoices.length > 0) await tx.feeInvoice.createMany({ data: data.feeInvoices });
+      if (data.books && data.books.length > 0) await tx.book.createMany({ data: data.books });
+      if (data.bookIssues && data.bookIssues.length > 0) await tx.bookIssue.createMany({ data: data.bookIssues });
+      if (data.visitorLogs && data.visitorLogs.length > 0) await tx.visitorLog.createMany({ data: data.visitorLogs });
+      if (data.rolePermissions && data.rolePermissions.length > 0) await tx.rolePermission.createMany({ data: data.rolePermissions });
+      if (data.userPermissions && data.userPermissions.length > 0) await tx.userPermission.createMany({ data: data.userPermissions });
+      if (data.auditLogs && data.auditLogs.length > 0) await tx.auditLog.createMany({ data: data.auditLogs });
+    }, { timeout: 30000 });
 
     await prisma.auditLog.create({
       data: {

@@ -6,6 +6,29 @@ const prisma = require('../config/db');
 const { authLimiter } = require('../middleware/limiter');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key-change-in-production';
+const crypto = require('crypto');
+
+// Helper to manage concurrent active sessions
+async function handleActiveSession(userId, res) {
+  const sessionId = crypto.randomUUID();
+  const behavior = process.env.SINGLE_SESSION_BEHAVIOR || 'FORCE_LOGOUT';
+
+  if (behavior === 'REJECT_LOGIN') {
+    const existing = await prisma.activeSession.findUnique({ where: { userId } });
+    if (existing) {
+      res.status(403).json({ message: 'Account is already active in another session/device.' });
+      return null;
+    }
+  }
+
+  await prisma.activeSession.upsert({
+    where: { userId },
+    update: { sessionId },
+    create: { userId, sessionId }
+  });
+
+  return sessionId;
+}
 
 // Helper to generate JWT
 const generateToken = (payload) => {
@@ -38,11 +61,15 @@ router.post('/developer/login', authLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
+    const sessionId = await handleActiveSession(dev.id, res);
+    if (!sessionId) return;
+
     const token = generateToken({
       id: dev.id,
       username: dev.username,
       name: dev.name,
-      role: 'DEVELOPER'
+      role: 'DEVELOPER',
+      sessionId
     });
 
     await prisma.auditLog.create({
@@ -101,11 +128,15 @@ router.post('/super-admin/login', authLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
+    const sessionId = await handleActiveSession(admin.id, res);
+    if (!sessionId) return;
+
     const token = generateToken({
       id: admin.id,
       username: admin.username,
       name: admin.name,
-      role: 'SUPER_ADMIN'
+      role: 'SUPER_ADMIN',
+      sessionId
     });
 
     await prisma.auditLog.create({
@@ -178,6 +209,9 @@ router.post('/school/login', authLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
+    const sessionId = await handleActiveSession(user.id, res);
+    if (!sessionId) return;
+
     const token = generateToken({
       id: user.id,
       username: user.username,
@@ -185,7 +219,8 @@ router.post('/school/login', authLimiter, async (req, res) => {
       role: 'SCHOOL_USER',
       schoolUserRole: user.role, // SCHOOL_ADMIN, PRINCIPAL, TEACHER, etc.
       schoolId: school.id,
-      schoolName: school.schoolName
+      schoolName: school.schoolName,
+      sessionId
     });
 
     await prisma.auditLog.create({
@@ -214,6 +249,24 @@ router.post('/school/login', authLimiter, async (req, res) => {
   } catch (error) {
     console.error('School login error:', error);
     return res.status(500).json({ message: 'Internal server error during school login.' });
+  }
+});
+
+// 4. Logout Endpoint
+router.post('/logout', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.decode(token);
+      if (decoded && decoded.id) {
+        await prisma.activeSession.deleteMany({ where: { userId: decoded.id } });
+      }
+    }
+    return res.json({ message: 'Logged out successfully.' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({ message: 'Internal server error during logout.' });
   }
 });
 

@@ -13,6 +13,7 @@ const App = {
     this.loadTheme();
     this.setupGlobalEventListeners();
     await this.checkSetupStatus();
+    this.initTabSession();
   },
 
   // Toast Notification System
@@ -221,6 +222,7 @@ const App = {
     this.state.user = user;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
+    this.initTabSession();
 
     if (user.role === 'DEVELOPER') {
       this.navigate('/developer');
@@ -232,11 +234,111 @@ const App = {
   },
 
   logout() {
+    if (this.state.token) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${this.state.token}` }
+      }).catch(err => console.error('Logout error:', err));
+    }
     this.state.token = null;
     this.state.user = null;
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+
+    const overlay = document.getElementById('tab-warning-overlay');
+    if (overlay) {
+      document.body.removeChild(overlay);
+    }
+
+    this.initTabSession();
     this.navigate('/');
+  },
+
+  initTabSession() {
+    const token = localStorage.getItem('token');
+    const userJson = localStorage.getItem('user');
+    if (!token || !userJson) {
+      if (this.tabChannel) {
+        this.tabChannel.close();
+        this.tabChannel = null;
+      }
+      return;
+    }
+
+    const user = JSON.parse(userJson);
+    const userId = user.id;
+
+    let tabId = sessionStorage.getItem('tabId');
+    if (!tabId) {
+      tabId = Math.random().toString(36).substring(2, 11);
+      sessionStorage.setItem('tabId', tabId);
+    }
+    this.state.tabId = tabId;
+
+    if (!this.tabChannel) {
+      this.tabChannel = new BroadcastChannel(`tab-session-channel-${userId}`);
+      
+      this.tabChannel.onmessage = (event) => {
+        const { type, senderTabId } = event.data;
+        if (senderTabId === tabId) return;
+
+        if (type === 'PING') {
+          this.tabChannel.postMessage({ type: 'PONG', senderTabId: tabId });
+        } else if (type === 'PONG') {
+          this.showTabWarning();
+        } else if (type === 'TAKE_OVER') {
+          this.showTabWarning();
+        }
+      };
+    }
+
+    this.tabChannel.postMessage({ type: 'PING', senderTabId: tabId });
+  },
+
+  showTabWarning() {
+    if (document.getElementById('tab-warning-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'tab-warning-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.backgroundColor = 'rgba(11, 15, 30, 0.95)';
+    overlay.style.backdropFilter = 'blur(16px)';
+    overlay.style.zIndex = '99999';
+    overlay.style.display = 'flex';
+    overlay.style.flexDirection = 'column';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.padding = '2rem';
+    overlay.style.textAlign = 'center';
+    overlay.style.color = 'var(--text-primary)';
+    overlay.style.fontFamily = 'var(--font-sans)';
+
+    overlay.innerHTML = `
+      <div class="card-glass text-center" style="max-width: 500px; padding: 3rem; border: 1px solid var(--border);">
+        <div style="width: 70px; height: 70px; border-radius: 50%; background-color: rgba(239, 68, 68, 0.15); color: var(--error); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem auto;">
+          <i data-lucide="alert-octagon" style="width: 38px; height: 38px;"></i>
+        </div>
+        <h2 style="font-size: 24px; margin-bottom: 1rem; font-family: var(--font-display);">Duplicate Tab Detected</h2>
+        <p style="color: var(--text-secondary); font-size: 15px; margin-bottom: 2rem; line-height: 1.6;">
+          Only one active browser tab is allowed for this portal. To resume using the application here, click the button below.
+        </p>
+        <button id="btn-take-over" class="btn btn-primary w-full">Use This Tab Instead</button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    if (window.lucide) window.lucide.createIcons();
+
+    document.getElementById('btn-take-over').addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      if (this.tabChannel) {
+        this.tabChannel.postMessage({ type: 'TAKE_OVER', senderTabId: this.state.tabId });
+      }
+    });
   },
 
   setupGlobalEventListeners() {

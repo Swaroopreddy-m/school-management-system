@@ -231,3 +231,11 @@ model UserPermission {
   menus     String     // e.g. "Dashboard,Students,Exams"
   createdAt DateTime   @default(now())
 }
+
+model ActiveSession {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  sessionId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

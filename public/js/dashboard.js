@@ -9,6 +9,19 @@ const DashboardPortal = {
   profile: {},
 
   // RENDER DEVELOPER PORTAL
+  toggleMobileSidebar(isOpen) {
+    const sidebar = document.querySelector('.sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (!sidebar) return;
+    if (isOpen) {
+      sidebar.classList.add('mobile-open');
+      if (backdrop) backdrop.classList.add('active');
+    } else {
+      sidebar.classList.remove('mobile-open');
+      if (backdrop) backdrop.classList.remove('active');
+    }
+  },
+
   async renderDeveloper() {
     this.activeTab = localStorage.getItem('devActiveTab') || 'dashboard';
     const container = document.getElementById('view-container');
@@ -17,6 +30,8 @@ const DashboardPortal = {
     // Load initial layout
     container.innerHTML = `
       <div class="dashboard-layout">
+        <!-- Sidebar Backdrop -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="DashboardPortal.toggleMobileSidebar(false)"></div>
         <!-- Sidebar -->
         <aside class="sidebar">
           <div class="sidebar-header">
@@ -86,7 +101,10 @@ const DashboardPortal = {
         <!-- Main Body -->
         <div class="main-content">
           <header class="header">
-            <div style="font-size: 18px; font-weight: 600;" id="page-content-title">Dashboard Overview</div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <button class="btn btn-secondary mobile-only" onclick="DashboardPortal.toggleMobileSidebar(true)" style="padding: 0.5rem; border-radius: var(--radius-sm);"><i data-lucide="menu" style="width: 20px; height: 20px;"></i></button>
+              <div style="font-size: 18px; font-weight: 600;" id="page-content-title">Dashboard Overview</div>
+            </div>
             <div class="header-actions">
               <button class="theme-toggle-btn" onclick="App.toggleTheme()" title="Toggle Theme">
                 <i data-lucide="sun" style="width: 20px; height: 20px;"></i>
@@ -170,6 +188,7 @@ const DashboardPortal = {
   },
 
   async switchDevTab(tab) {
+    this.toggleMobileSidebar(false);
     this.activeTab = tab;
     localStorage.setItem('devActiveTab', tab);
     
@@ -847,6 +866,8 @@ const DashboardPortal = {
 
     container.innerHTML = `
       <div class="dashboard-layout">
+        <!-- Sidebar Backdrop -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="DashboardPortal.toggleMobileSidebar(false)"></div>
         <!-- Sidebar -->
         <aside class="sidebar">
           <div class="sidebar-header">
@@ -912,7 +933,10 @@ const DashboardPortal = {
         <!-- Main Body -->
         <div class="main-content">
           <header class="header">
-            <div style="font-size: 18px; font-weight: 600;" id="admin-page-title">Manage School Tenants</div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <button class="btn btn-secondary mobile-only" onclick="DashboardPortal.toggleMobileSidebar(true)" style="padding: 0.5rem; border-radius: var(--radius-sm);"><i data-lucide="menu" style="width: 20px; height: 20px;"></i></button>
+              <div style="font-size: 18px; font-weight: 600;" id="admin-page-title">Manage School Tenants</div>
+            </div>
             <div class="header-actions">
               <button class="theme-toggle-btn" onclick="App.toggleTheme()">
                 <i data-lucide="sun" style="width: 20px; height: 20px;"></i>
@@ -1135,6 +1159,7 @@ const DashboardPortal = {
   },
 
   async switchAdminTab(tab) {
+    this.toggleMobileSidebar(false);
     this.activeTab = tab;
     localStorage.setItem('adminActiveTab', tab);
 
@@ -1607,6 +1632,8 @@ const DashboardPortal = {
 
     container.innerHTML = `
       <div class="dashboard-layout">
+        <!-- Sidebar Backdrop -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="DashboardPortal.toggleMobileSidebar(false)"></div>
         <!-- Sidebar -->
         <aside class="sidebar">
           <div class="sidebar-header">
@@ -1639,7 +1666,10 @@ const DashboardPortal = {
         <!-- Main Body -->
         <div class="main-content">
           <header class="header">
-            <div style="font-size: 18px; font-weight: 600;" id="school-page-title">${this.activeTab}</div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <button class="btn btn-secondary mobile-only" onclick="DashboardPortal.toggleMobileSidebar(true)" style="padding: 0.5rem; border-radius: var(--radius-sm);"><i data-lucide="menu" style="width: 20px; height: 20px;"></i></button>
+              <div style="font-size: 18px; font-weight: 600;" id="school-page-title">${this.activeTab}</div>
+            </div>
             <div class="header-actions">
               <button class="theme-toggle-btn" onclick="App.toggleTheme()">
                 <i data-lucide="sun" style="width: 20px; height: 20px;"></i>
@@ -2169,6 +2199,7 @@ const DashboardPortal = {
   },
 
   switchSchoolTab(tab) {
+    this.toggleMobileSidebar(false);
     this.activeTab = tab;
     localStorage.setItem('schoolActiveTab', tab);
     this.renderSchool();
